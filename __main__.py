@@ -1,0 +1,1 @@
+from alita.cli import app; app()
