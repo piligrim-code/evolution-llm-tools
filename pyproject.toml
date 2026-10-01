@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evolution-llm-tools"
+version = "0.1.0"
+description = "Experimental Ollama tool generation with explicit unsafe execution consent"
+requires-python = ">=3.12"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = ["pydantic>=2,<3", "requests>=2.31,<3", "rich>=13,<15", "typer>=0.12,<1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+evolution-tools = "alita.cli:app"
+
+[tool.setuptools]
+packages = ["alita", "alita.mcp"]
+package-dir = {alita = "."}

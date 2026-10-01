@@ -9,9 +9,9 @@ from .mcp.brainstorming import brainstorm_tools
 from .mcp.script_generator import propose_tool_scripts
 from .mcp.code_runner import run_generated_tool, register_tool
 from .mcp.registry import ToolRegistry
+from .execution_policy import require_unsafe_execution
 
 console = Console()
-llm = OllamaClient()
 
 
 def normalize_args(question: str, spec: dict) -> dict:
@@ -36,10 +36,10 @@ def normalize_args(question: str, spec: dict) -> dict:
     return normalized
 
 
-def code_react_loop(question: str) -> Dict[str, Any]:
+def code_react_loop(question: str, *, allow_unsafe_execution=False, model=None) -> Dict[str, Any]:
+    llm = OllamaClient(model=model)
     run_id = str(uuid.uuid4())[:8]
     run_dir = pathlib.Path(settings.runs_dir) / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
 
     console.rule("[bold]Manager: Analyze & Decide")
     prompt = f"""
@@ -85,16 +85,17 @@ Respond as JSON with keys:
 
     console.print(Panel.fit(json.dumps(meta, ensure_ascii=False, indent=2), title="Decision"))
 
-    registry = ToolRegistry()
     final_answer = meta.get("direct_answer", "").strip()
 
     if meta.get("need_tool"):
+        require_unsafe_execution(allow_unsafe_execution)
+        registry = ToolRegistry()
         tool_name_hint = meta.get("tool_idea","").strip().lower().replace(" ", "_")[:40] or "auto_tool"
         existing = registry.find_similar(tool_name_hint)
         if existing:
             console.print(f"[bold green]Reusing existing tool:[/bold green] {existing['name']}")
             args = normalize_args(question, existing["spec"])
-            result = registry.run(existing["name"], args)
+            result = registry.run(existing["name"], args, allow_unsafe_execution=allow_unsafe_execution)
             final_answer = f"{final_answer}\n[Used tool {existing['name']}] Output:\n{result}"
             return {"answer": final_answer, "used_tool": existing["name"]}
 
@@ -103,15 +104,19 @@ Respond as JSON with keys:
         console.print(Panel.fit(json.dumps(tool_spec, ensure_ascii=False, indent=2), title="Brainstorm Spec"))
 
         scripts = propose_tool_scripts(tool_spec=tool_spec, llm=llm)
-        run_out = run_generated_tool(scripts=scripts, tool_spec=tool_spec, run_dir=run_dir, question=question)
+        args = normalize_args(question, tool_spec)
+        run_out = run_generated_tool(scripts=scripts, tool_spec=tool_spec, run_dir=run_dir,
+                                     question=question, tool_args=args,
+                                     allow_unsafe_execution=allow_unsafe_execution)
+        if run_out['returncode'] != 0:
+            raise RuntimeError('Generated tool failed; it was not registered')
         console.print(Panel.fit(run_out["stdout"][-2000:], title="Tool Execution (tail)"))
 
         tool_meta = register_tool(scripts=scripts, tool_spec=tool_spec, run_result=run_out)
         console.print(Panel.fit(json.dumps(tool_meta, ensure_ascii=False, indent=2), title="Registered Tool"))
 
         # финальный ответ — уже по реальному запросу
-        args = normalize_args(question, tool_meta["spec"])
-        real_out = registry.run(tool_meta["name"], args)
+        real_out = run_out['stdout'].strip()
         final_answer = f"{final_answer}\n[Created tool {tool_meta['name']}] Output:\n{real_out}"
 
         return {"answer": final_answer, "used_tool": tool_meta["name"]}

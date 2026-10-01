@@ -1,4 +1,6 @@
 # Byte-compiled / optimized / DLL files
+.runs/
+.mcp/
 __pycache__/
 *.py[codz]
 *$py.class
