@@ -5,8 +5,10 @@ from .mcp.registry import ToolRegistry
 from .config import settings
 from .container_runner import ContainerPolicy, ContainerError, require_execution_mode, _display_text
 from .llm import OllamaError
+from .review_cli import app as review_app
 
 app = typer.Typer()
+app.add_typer(review_app, name="review")
 console = Console()
 
 @app.command()
