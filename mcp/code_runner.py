@@ -4,6 +4,7 @@ from typing import Dict, Any
 from ..config import settings
 from .registry import ToolRegistry
 from ..execution_policy import require_unsafe_execution, validate_scripts, reject_linked_path
+from ..container_runner import ContainerExecutor, require_execution_mode, validate_payload
 
 def _write_scripts(run_dir: pathlib.Path, scripts: Dict[str, str]):
     validate_scripts(scripts)
@@ -37,14 +38,18 @@ def _execute_tool(venv_dir: pathlib.Path, run_dir: pathlib.Path, tool_args: Dict
     proc = subprocess.run(cmd, capture_output=True, text=True, cwd=str(run_dir), timeout=120)
     return {"returncode": proc.returncode, "stdout": proc.stdout, "stderr": proc.stderr}
 
-def run_generated_tool(scripts: Dict[str, str], tool_spec: Dict[str, Any], run_dir: pathlib.Path, question: str | None = None, *, allow_unsafe_execution=False, tool_args=None) -> Dict[str, Any]:
-    require_unsafe_execution(allow_unsafe_execution)
+def run_generated_tool(scripts: Dict[str, str], tool_spec: Dict[str, Any], run_dir: pathlib.Path, question: str | None = None, *, allow_unsafe_execution=False, tool_args=None, container=None) -> Dict[str, Any]:
+    require_execution_mode(allow_unsafe_execution, container)
+    if tool_args is None:
+        tool_args = {"question": question} if question else tool_spec.get("example_args", {})
+    if container is not None:
+        validate_payload(scripts, tool_args)
+        _write_scripts(run_dir, scripts)
+        return ContainerExecutor(container).run(scripts, tool_args)
     _write_scripts(run_dir, scripts)
     venv_dir = run_dir / ".venv"
     _create_venv(venv_dir)
     _install_requirements(venv_dir, run_dir, allow_unsafe_execution=allow_unsafe_execution)
-    if tool_args is None:
-        tool_args = {"question": question} if question else tool_spec.get("example_args", {})
     return _execute_tool(venv_dir, run_dir, tool_args, allow_unsafe_execution=allow_unsafe_execution)
 
 def register_tool(scripts: Dict[str, str], tool_spec: Dict[str, Any], run_result: Dict[str, Any]) -> Dict[str, Any]:
