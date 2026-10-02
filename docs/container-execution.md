@@ -68,6 +68,9 @@ No automatic dependency installation, model-output execution approval or retry.
 Concurrent pipe drains bound captured output. Exceeding output/time limits kills
 the owned container and reports a nonzero result; an OOM result is also a failure.
 Failed executions are not registered as working tools. No request is replayed.
+Returned text removes terminal control and Unicode formatting characters except
+newline/tab. The byte cap applies before UTF-8 replacement decoding, so invalid
+UTF-8 can expand the returned string; captured raw bytes remain bounded.
 
 All ordinary success/failure paths attempt removal by inspected immutable ID,
 with its owner label/name checked again. Cleanup failure overrides apparent tool
@@ -93,7 +96,9 @@ security is claimed. Tool output is untrusted text, not an instruction to the ho
 Default tests verify refusal, parameter validation, mode propagation, ownership
 and the pre-start policy checks without Docker. Actual CI tests inspect controls
 from inside containers and exercise filesystem/environment/network boundaries,
-PID pressure, OOM, timeout and output overflow. Fixtures are hand-written and use
+PID pressure, file/tmpfs limits, OOM, timeout and output overflow. A manager fixture
+also creates, runs, registers and reuses a tool through the actual container path.
+Fixtures are hand-written and use
 only temporary synthetic data; no customer data or model-generated code is run.
 Linux CI is the actual engine qualification. Windows CLI guard tests do not prove
 a particular Docker Desktop/VM deployment until its actual suite has been run.

@@ -1,4 +1,5 @@
 import json
+import io
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -75,6 +76,27 @@ def test_endpoint_is_pinned_and_context_environment_removed(monkeypatch):
         assert "DOCKER_CONTEXT" not in call.kwargs["env"]
 
 
+@pytest.mark.parametrize("key,value", [("MemoryLimit", False), ("SwapLimit", False), ("CpuCfsQuota", False),
+    ("PidsLimit", False), ("CgroupVersion", "1"), ("OSType", "windows"),
+    ("SecurityOptions", []), ("SecurityOptions", ["name=seccomp,profile=unconfined"])])
+def test_missing_kernel_controls_fail_before_image_or_container_operations(monkeypatch, key, value):
+    monkeypatch.setattr(runner.os, "environ", {})
+    executor = ContainerExecutor(ContainerPolicy(IMAGE))
+    info = {"OSType": "linux", "CgroupVersion": "2", "SecurityOptions": ["name=seccomp,profile=builtin"],
+            **{field: True for field in ("MemoryLimit", "SwapLimit", "CpuCfsQuota", "PidsLimit")}}
+    info[key] = value
+    query = Mock(side_effect=[[{"Endpoints": {"docker": {"Host": "unix:///var/run/docker.sock"}}}], info])
+    monkeypatch.setattr(executor, "_json", query)
+    with pytest.raises(ContainerError, match="kernel_controls"):
+        executor.preflight()
+    assert query.call_count == 2
+
+
+def test_terminal_controls_and_bidi_overrides_are_not_returned():
+    result = runner._display_text(b'\x1b]52;clipboard\x07\r\x00' + 'text\u202e\n\t'.encode())
+    assert result == ']52;clipboardtext\n\t'
+
+
 @pytest.mark.parametrize("key,value", [("Privileged", True), ("Memory", 0), ("MemorySwap", -1),
     ("PidsLimit", 0), ("NanoCpus", 0), ("NetworkMode", "host"), ("PidMode", "host"),
     ("ReadonlyRootfs", False), ("Binds", ["/:/host"]), ("CapAdd", ["SYS_ADMIN"]),
@@ -115,6 +137,36 @@ def test_policy_mismatch_never_starts_and_still_cleans_owned_container(monkeypat
         executor.run({"tool.py": "print(2)"}, {})
     execute.assert_not_called()
     remove.assert_called_once()
+
+
+def test_io_thread_start_failure_still_stops_attach_process_and_closes_pipes(monkeypatch):
+    executor = ContainerExecutor(ContainerPolicy(IMAGE))
+    executor.endpoint, executor.container_id = "unix:///var/run/docker.sock", "b" * 64
+    process = SimpleNamespace(stdin=io.BytesIO(), stdout=io.BytesIO(), stderr=io.BytesIO(),
+                              poll=Mock(return_value=None), wait=Mock(), kill=Mock())
+    monkeypatch.setattr(runner.subprocess, "Popen", Mock(return_value=process))
+    monkeypatch.setattr(runner.Thread, "start", Mock(side_effect=RuntimeError("Synthetic thread limit")))
+    data = item(executor)
+    data["State"] = {"Running": True}
+    monkeypatch.setattr(executor, "_owned", Mock(return_value=data))
+    control = Mock()
+    monkeypatch.setattr(executor, "_docker", control)
+    with pytest.raises(RuntimeError, match="thread limit"):
+        executor._execute(b"{}")
+    control.assert_called_once_with("container", "kill", executor.container_id)
+    process.wait.assert_called_once_with(timeout=5)
+    assert process.stdin.closed and process.stdout.closed and process.stderr.closed
+
+
+def test_cleanup_failure_never_returns_apparent_tool_success(monkeypatch):
+    executor = ContainerExecutor(ContainerPolicy(IMAGE))
+    monkeypatch.setattr(executor, "preflight", Mock())
+    monkeypatch.setattr(executor, "_docker", Mock(return_value=SimpleNamespace(stdout=b"b" * 64)))
+    monkeypatch.setattr(executor, "_owned", Mock(return_value=item(executor)))
+    monkeypatch.setattr(executor, "_execute", Mock(return_value={"returncode": 0, "stdout": "apparent success"}))
+    monkeypatch.setattr(executor, "_remove", Mock(side_effect=ContainerError("synthetic-control-failure")))
+    with pytest.raises(ContainerError, match="cleanup_unconfirmed"):
+        executor.run({"tool.py": "print(2)"}, {})
 
 
 @pytest.mark.parametrize("args", [[], {"x": float("nan")}, {"x": "x" * runner.INPUT_LIMIT}])
