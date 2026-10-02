@@ -1,6 +1,8 @@
 """Actual OS controls on test-owned containers. No generated model output is run."""
 import os
+import json
 import socket
+from types import SimpleNamespace
 
 import pytest
 
@@ -117,3 +119,62 @@ def test_output_is_bounded_and_overflow_is_failure():
     result = execute("while True:\n    print('x' * 4096, flush=True)\n")
     assert result["outcome"] == "output_limit" and result["returncode"] == 124
     assert len(result["stdout"].encode()) + len(result["stderr"].encode()) <= OUTPUT_LIMIT
+
+
+def test_file_and_tmpfs_capacity_limits_are_enforced():
+    result = execute('''import errno, pathlib, signal
+signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+chunk = b'x' * (1024 * 1024)
+try:
+    with open('/work/large', 'wb') as stream:
+        for _ in range(9):
+            stream.write(chunk)
+except OSError as error:
+    assert error.errno == errno.EFBIG
+else:
+    raise AssertionError('file size was not limited')
+assert pathlib.Path('/work/large').stat().st_size <= 8388608
+pathlib.Path('/work/large').unlink()
+try:
+    for index in range(8):
+        with open('/work/part' + str(index), 'wb') as stream:
+            for _ in range(4):
+                stream.write(chunk)
+except OSError as error:
+    assert error.errno == errno.ENOSPC
+else:
+    raise AssertionError('tmpfs was not bounded')
+print('disk bounds verified')
+''')
+    assert result["returncode"] == 0, result
+
+
+def test_manager_create_register_and_reuse_stay_in_container(tmp_path, monkeypatch):
+    from alita import manager
+    from alita.config import settings
+    from alita.mcp.registry import ToolRegistry
+    monkeypatch.setattr(settings, "runs_dir", str(tmp_path / "runs"))
+    monkeypatch.setattr(settings, "tools_dir", str(tmp_path / "tools"))
+    monkeypatch.setattr(settings, "allow_pip", True)
+    decision = {"need_tool": True, "tool_idea": "synthetic_length", "direct_answer": ""}
+    monkeypatch.setattr(manager, "OllamaClient", lambda **kwargs: SimpleNamespace(generate=lambda prompt: json.dumps(decision)))
+    monkeypatch.setattr(manager, "brainstorm_tools", lambda **kwargs: {"name": "synthetic_length", "args": [{"name": "text"}]})
+    code = 'import argparse, json\np=argparse.ArgumentParser();p.add_argument("--json")\nprint(len(json.loads(p.parse_args().json)["text"]))\n'
+    monkeypatch.setattr(manager, "propose_tool_scripts", lambda **kwargs: {"tool.py": code, "requirements.txt": ""})
+    calls = []
+    original = ContainerExecutor.run
+    def record(self, scripts, args):
+        calls.append(self.owner)
+        return original(self, scripts, args)
+    monkeypatch.setattr(ContainerExecutor, "run", record)
+    policy = ContainerPolicy(os.environ["ALITA_TEST_IMAGE"])
+    first = manager.code_react_loop("abcd", container=policy)
+    second = manager.code_react_loop("abcd", container=policy)
+    assert first["used_tool"] == second["used_tool"] == "synthetic_length"
+    assert len(calls) == len(set(calls)) == 2 and "Output:\n4" in second["answer"]
+    saved = ToolRegistry().get("synthetic_length")
+    assert saved["last_run"]["execution"] == "container" and saved["last_run"]["returncode"] == 0
+    assert not list(tmp_path.rglob(".venv"))
+    with pytest.raises(PermissionError):
+        manager.code_react_loop("abcd")
+    assert len(calls) == 2

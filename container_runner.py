@@ -82,6 +82,12 @@ def validate_payload(scripts, args):
     return payload
 
 
+def _display_text(data):
+    # Tool output is untrusted terminal data; preserve text, not control sequences.
+    text = bytes(data).decode("utf-8", errors="replace")
+    return "".join(char for char in text if char in "\n\t" or char.isprintable())
+
+
 class ContainerExecutor:
     def __init__(self, policy):
         require_execution_mode(False, policy)
@@ -251,11 +257,11 @@ class ContainerExecutor:
         threads = [Thread(target=read, args=(process.stdout, "stdout"), daemon=True),
                    Thread(target=read, args=(process.stderr, "stderr"), daemon=True),
                    Thread(target=write, daemon=True)]
-        for thread in threads:
-            thread.start()
         outcome = "exited"
         deadline = time.monotonic() + self.policy.timeout
         try:
+            for thread in threads:
+                thread.start()
             while process.poll() is None:
                 if exceeded.is_set() or io_failed.is_set() or time.monotonic() >= deadline:
                     outcome = "output_limit" if exceeded.is_set() else "io_failure" if io_failed.is_set() else "timeout"
@@ -276,7 +282,9 @@ class ContainerExecutor:
                             process.wait(timeout=5)
             finally:
                 for thread in threads:
-                    thread.join(timeout=5)
+                    if thread.ident is not None:
+                        thread.join(timeout=5)
+                process.stdin.close()
                 process.stdout.close()
                 process.stderr.close()
         if any(thread.is_alive() for thread in threads):
@@ -286,9 +294,11 @@ class ContainerExecutor:
             raise ContainerError("container_did_not_finish", self.name)
         if exceeded.is_set():
             outcome = "output_limit"
+        elif io_failed.is_set():
+            outcome = "io_failure"
         elif item["State"].get("OOMKilled"):
             outcome = "memory_limit"
         return {"returncode": item["State"]["ExitCode"] if outcome == "exited" else 124,
-                "stdout": bytes(output["stdout"]).decode("utf-8", errors="replace"),
-                "stderr": bytes(output["stderr"]).decode("utf-8", errors="replace"),
+                "stdout": _display_text(output["stdout"]),
+                "stderr": _display_text(output["stderr"]),
                 "execution": "container", "outcome": outcome}
