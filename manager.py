@@ -9,7 +9,7 @@ from .mcp.brainstorming import brainstorm_tools
 from .mcp.script_generator import propose_tool_scripts
 from .mcp.code_runner import run_generated_tool, register_tool
 from .mcp.registry import ToolRegistry
-from .execution_policy import require_unsafe_execution
+from .container_runner import require_execution_mode
 
 console = Console()
 
@@ -36,7 +36,7 @@ def normalize_args(question: str, spec: dict) -> dict:
     return normalized
 
 
-def code_react_loop(question: str, *, allow_unsafe_execution=False, model=None) -> Dict[str, Any]:
+def code_react_loop(question: str, *, allow_unsafe_execution=False, model=None, container=None) -> Dict[str, Any]:
     llm = OllamaClient(model=model)
     run_id = str(uuid.uuid4())[:8]
     run_dir = pathlib.Path(settings.runs_dir) / run_id
@@ -88,26 +88,27 @@ Respond as JSON with keys:
     final_answer = meta.get("direct_answer", "").strip()
 
     if meta.get("need_tool"):
-        require_unsafe_execution(allow_unsafe_execution)
+        require_execution_mode(allow_unsafe_execution, container)
         registry = ToolRegistry()
         tool_name_hint = meta.get("tool_idea","").strip().lower().replace(" ", "_")[:40] or "auto_tool"
         existing = registry.find_similar(tool_name_hint)
         if existing:
             console.print(f"[bold green]Reusing existing tool:[/bold green] {existing['name']}")
             args = normalize_args(question, existing["spec"])
-            result = registry.run(existing["name"], args, allow_unsafe_execution=allow_unsafe_execution)
+            result = registry.run(existing["name"], args, allow_unsafe_execution=allow_unsafe_execution, container=container)
             final_answer = f"{final_answer}\n[Used tool {existing['name']}] Output:\n{result}"
             return {"answer": final_answer, "used_tool": existing["name"]}
 
         # создать новый tool
-        tool_spec = brainstorm_tools(question=question, tool_name_hint=tool_name_hint, llm=llm)
+        tool_spec = brainstorm_tools(question=question, tool_name_hint=tool_name_hint, llm=llm,
+                                     stdlib_only=container is not None)
         console.print(Panel.fit(json.dumps(tool_spec, ensure_ascii=False, indent=2), title="Brainstorm Spec"))
 
-        scripts = propose_tool_scripts(tool_spec=tool_spec, llm=llm)
+        scripts = propose_tool_scripts(tool_spec=tool_spec, llm=llm, stdlib_only=container is not None)
         args = normalize_args(question, tool_spec)
         run_out = run_generated_tool(scripts=scripts, tool_spec=tool_spec, run_dir=run_dir,
                                      question=question, tool_args=args,
-                                     allow_unsafe_execution=allow_unsafe_execution)
+                                     allow_unsafe_execution=allow_unsafe_execution, container=container)
         if run_out['returncode'] != 0:
             raise RuntimeError('Generated tool failed; it was not registered')
         console.print(Panel.fit(run_out["stdout"][-2000:], title="Tool Execution (tail)"))
