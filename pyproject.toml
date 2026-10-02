@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "evolution-llm-tools"
 version = "0.1.0"
-description = "Experimental Ollama tool generation with explicit unsafe execution consent"
+description = "Toolwright: experimental local tool generation with explicit execution controls"
 requires-python = ">=3.12"
 readme = "README.md"
 license = "MIT"
