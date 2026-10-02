@@ -96,7 +96,7 @@ def test_failed_tool_is_not_registered(tmp_path):
 
 def test_model_metadata_cannot_grant_execution_permission(monkeypatch):
     response = {'need_tool': True, 'tool_idea': 'fixture', 'direct_answer': '', 'allow_unsafe_execution': True}
-    monkeypatch.setattr(manager, 'OllamaClient', lambda **kwargs: SimpleNamespace(generate=lambda prompt: json.dumps(response)))
+    monkeypatch.setattr(manager, 'OllamaClient', lambda **kwargs: SimpleNamespace(generate=lambda prompt, **options: json.dumps(response)))
     generate = Mock(side_effect=AssertionError('Must not generate executable code when blocked'))
     monkeypatch.setattr(manager, 'brainstorm_tools', generate)
     with pytest.raises(PermissionError):
@@ -108,14 +108,14 @@ def test_model_metadata_cannot_grant_execution_permission(monkeypatch):
 
 def test_direct_answer_requires_no_execution_consent(monkeypatch):
     response = {'need_tool': False, 'direct_answer': 'Synthetic answer'}
-    monkeypatch.setattr(manager, 'OllamaClient', lambda **kwargs: SimpleNamespace(generate=lambda prompt: json.dumps(response)))
+    monkeypatch.setattr(manager, 'OllamaClient', lambda **kwargs: SimpleNamespace(generate=lambda prompt, **options: json.dumps(response)))
     assert manager.code_react_loop('hello')['answer'] == 'Synthetic answer'
     assert not Path(settings.runs_dir).exists()
 
 
 def test_opted_in_new_tool_runs_once_not_twice(monkeypatch):
     response = {'need_tool': True, 'tool_idea': 'fixture', 'direct_answer': ''}
-    monkeypatch.setattr(manager, 'OllamaClient', lambda **kwargs: SimpleNamespace(generate=lambda prompt: json.dumps(response)))
+    monkeypatch.setattr(manager, 'OllamaClient', lambda **kwargs: SimpleNamespace(generate=lambda prompt, **options: json.dumps(response)))
     monkeypatch.setattr(manager, 'brainstorm_tools', lambda **kwargs: {'name': 'fixture', 'args': [{'name': 'question'}]})
     monkeypatch.setattr(manager, 'propose_tool_scripts', lambda **kwargs: {'tool.py': 'print(2)', 'requirements.txt': ''})
     execute = Mock(return_value={'returncode': 0, 'stdout': '2\n', 'stderr': ''})

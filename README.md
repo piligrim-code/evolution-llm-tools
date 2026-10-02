@@ -35,6 +35,12 @@ default is to stop with an explicit permission error. The `tool-run` example
 above also refuses execution without consent. Model output, saved metadata
 and requirement files cannot grant that consent.
 
+The Ollama client now bounds the complete HTTP exchange and NDJSON/text size,
+requires a complete valid stream, and closes sessions on failure/cancellation.
+Malformed model decisions no longer become raw fallback answers. Specifications
+and generated Python syntax are checked before execution, independently of the
+permission gate. See `docs/ollama-contract.md` for exact limits and compatibility.
+
 ## Explicit Container Mode
 
 With a trusted local Linux Docker engine (cgroup v2 and seccomp required), first

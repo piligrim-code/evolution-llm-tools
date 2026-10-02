@@ -1,8 +1,8 @@
 """Actual OS controls on test-owned containers. No generated model output is run."""
 import os
 import json
+import asyncio
 import socket
-from types import SimpleNamespace
 
 import pytest
 
@@ -150,17 +150,22 @@ print('disk bounds verified')
 
 
 def test_manager_create_register_and_reuse_stay_in_container(tmp_path, monkeypatch):
+    from aiohttp import web
     from alita import manager
     from alita.config import settings
     from alita.mcp.registry import ToolRegistry
+    from tests.ollama_fixture import frame, with_provider
     monkeypatch.setattr(settings, "runs_dir", str(tmp_path / "runs"))
     monkeypatch.setattr(settings, "tools_dir", str(tmp_path / "tools"))
     monkeypatch.setattr(settings, "allow_pip", True)
     decision = {"need_tool": True, "tool_idea": "synthetic_length", "direct_answer": ""}
-    monkeypatch.setattr(manager, "OllamaClient", lambda **kwargs: SimpleNamespace(generate=lambda prompt: json.dumps(decision)))
-    monkeypatch.setattr(manager, "brainstorm_tools", lambda **kwargs: {"name": "synthetic_length", "args": [{"name": "text"}]})
+    spec = {"name": "synthetic_length", "args": [{"name": "text", "type": "string"}]}
     code = 'import argparse, json\np=argparse.ArgumentParser();p.add_argument("--json")\nprint(len(json.loads(p.parse_args().json)["text"]))\n'
-    monkeypatch.setattr(manager, "propose_tool_scripts", lambda **kwargs: {"tool.py": code, "requirements.txt": ""})
+    answers = [json.dumps(decision), json.dumps(spec), code + "REQUIREMENTS: none", json.dumps(decision), json.dumps(decision)]
+    received = []
+    async def provider(request):
+        received.append(await request.json())
+        return web.Response(body=frame(answers[len(received) - 1], True))
     calls = []
     original = ContainerExecutor.run
     def record(self, scripts, args):
@@ -168,13 +173,21 @@ def test_manager_create_register_and_reuse_stay_in_container(tmp_path, monkeypat
         return original(self, scripts, args)
     monkeypatch.setattr(ContainerExecutor, "run", record)
     policy = ContainerPolicy(os.environ["ALITA_TEST_IMAGE"])
-    first = manager.code_react_loop("abcd", container=policy)
-    second = manager.code_react_loop("abcd", container=policy)
-    assert first["used_tool"] == second["used_tool"] == "synthetic_length"
-    assert len(calls) == len(set(calls)) == 2 and "Output:\n4" in second["answer"]
-    saved = ToolRegistry().get("synthetic_length")
-    assert saved["last_run"]["execution"] == "container" and saved["last_run"]["returncode"] == 0
-    assert not list(tmp_path.rglob(".venv"))
-    with pytest.raises(PermissionError):
-        manager.code_react_loop("abcd")
-    assert len(calls) == 2
+    def scenario():
+        first = manager.code_react_loop("abcd", container=policy)
+        second = manager.code_react_loop("abcd", container=policy)
+        assert first["used_tool"] == second["used_tool"] == "synthetic_length"
+        assert len(calls) == len(set(calls)) == 2 and "Output:\n4" in second["answer"]
+        saved = ToolRegistry().get("synthetic_length")
+        assert saved["last_run"]["execution"] == "container" and saved["last_run"]["returncode"] == 0
+        assert not list(tmp_path.rglob(".venv"))
+        with pytest.raises(PermissionError):
+            manager.code_react_loop("abcd")
+        assert len(calls) == 2
+    async def operation(url):
+        monkeypatch.setattr(settings, "ollama_url", url)
+        await asyncio.to_thread(scenario)
+    asyncio.run(with_provider(provider, operation))
+    assert len(received) == 5
+    assert received[0]["format"] == received[1]["format"] == "json"
+    assert "format" not in received[2] and received[2]["options"]["num_predict"] == 1800

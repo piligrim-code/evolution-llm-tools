@@ -10,6 +10,7 @@ from .mcp.script_generator import propose_tool_scripts
 from .mcp.code_runner import run_generated_tool, register_tool
 from .mcp.registry import ToolRegistry
 from .container_runner import require_execution_mode
+from .contracts import bounded_text, decision, tool_spec as validate_tool_spec, ModelContractError
 
 console = Console()
 
@@ -20,8 +21,11 @@ def normalize_args(question: str, spec: dict) -> dict:
     - Всегда прокидываем и 'text', и 'question'
     - Подстраиваемся под args тулзы
     """
+    spec = validate_tool_spec(spec)
     base_args = {"text": question, "question": question, "input": question}
-    expected = [a["name"] for a in spec.get("args", [])]
+    if any(arg["name"] not in base_args or arg["type"] != "string" for arg in spec["args"]):
+        raise ModelContractError("unsupported_manager_arguments")
+    expected = [a["name"] for a in spec["args"]]
 
     normalized = {}
     for k in expected:
@@ -32,11 +36,11 @@ def normalize_args(question: str, spec: dict) -> dict:
     if not normalized:
         normalized = {"text": question}
 
-    console.print(f"[cyan]Normalized args →[/cyan] {normalized}")
     return normalized
 
 
 def code_react_loop(question: str, *, allow_unsafe_execution=False, model=None, container=None) -> Dict[str, Any]:
+    bounded_text(question, 16000)
     llm = OllamaClient(model=model)
     run_id = str(uuid.uuid4())[:8]
     run_dir = pathlib.Path(settings.runs_dir) / run_id
@@ -57,17 +61,7 @@ Respond as JSON with keys:
 - input_schema: optional JSON schema for tool input
 - output_schema: optional JSON schema for tool output
 """
-    draft = llm.generate(prompt)
-    try:
-        match = re.search(r"\{.*\}", draft, re.S)
-        meta = json.loads(match.group(0)) if match else json.loads(draft)
-    except Exception:
-        meta = {
-            "need_tool": False,
-            "tool_idea": "",
-            "reason": "Failed to parse JSON; fallback to direct answer",
-            "direct_answer": draft.strip()
-        }
+    meta = decision(llm.generate(prompt, json_mode=True))
 
     # эвристики: форсим need_tool на даты/среднее/CSV
     text_q = question.lower()
@@ -100,12 +94,12 @@ Respond as JSON with keys:
             return {"answer": final_answer, "used_tool": existing["name"]}
 
         # создать новый tool
-        tool_spec = brainstorm_tools(question=question, tool_name_hint=tool_name_hint, llm=llm,
-                                     stdlib_only=container is not None)
+        tool_spec = validate_tool_spec(brainstorm_tools(question=question, tool_name_hint=tool_name_hint, llm=llm,
+                                     stdlib_only=container is not None))
+        args = normalize_args(question, tool_spec)
         console.print(Panel.fit(json.dumps(tool_spec, ensure_ascii=False, indent=2), title="Brainstorm Spec"))
 
         scripts = propose_tool_scripts(tool_spec=tool_spec, llm=llm, stdlib_only=container is not None)
-        args = normalize_args(question, tool_spec)
         run_out = run_generated_tool(scripts=scripts, tool_spec=tool_spec, run_dir=run_dir,
                                      question=question, tool_args=args,
                                      allow_unsafe_execution=allow_unsafe_execution, container=container)
