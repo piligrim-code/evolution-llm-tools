@@ -2,7 +2,8 @@ from __future__ import annotations
 import os, json, pathlib, subprocess, sys, shutil
 from typing import Dict, Any, Optional
 from ..config import settings
-from ..execution_policy import normalized_tool_name, validate_scripts, reject_linked_path, require_unsafe_execution
+from ..execution_policy import normalized_tool_name, validate_scripts, reject_linked_path
+from ..container_runner import ContainerExecutor, ContainerError, require_execution_mode
 
 class ToolRegistry:
     def __init__(self, tools_dir: str | None = None):
@@ -67,11 +68,24 @@ class ToolRegistry:
                 return it
         return None
 
-    def run(self, name: str, args: Dict[str, Any], *, allow_unsafe_execution=False) -> str:
-        require_unsafe_execution(allow_unsafe_execution)
+    def run(self, name: str, args: Dict[str, Any], *, allow_unsafe_execution=False, container=None) -> str:
+        require_execution_mode(allow_unsafe_execution, container)
         td = self._tool_path(name)
         if not td.exists():
             raise FileNotFoundError(name)
+        if container is not None:
+            scripts = {}
+            for filename in ("tool.py", "requirements.txt"):
+                path = reject_linked_path(td / filename)
+                if path.exists():
+                    if not path.is_file() or path.stat().st_size > 256_000:
+                        raise ValueError("Invalid saved tool file")
+                    with path.open(encoding="utf-8") as stream:
+                        scripts[filename] = stream.read(256_001)
+            result = ContainerExecutor(container).run(scripts, args)
+            if result["returncode"] != 0:
+                raise ContainerError("tool_failed_" + result["outcome"])
+            return result["stdout"].strip()
         venv = td / ".venv"
         reject_linked_path(venv)
         reject_linked_path(td / 'tool.py')
