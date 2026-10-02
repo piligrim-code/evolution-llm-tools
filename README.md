@@ -11,6 +11,16 @@ the import namespace remains `alita`. No install command, import or stored tool
 needs changing for this naming update. Toolwright remains independent of MCP
 Memory, with its own code, dependencies and release lifecycle.
 
+## Review Before Execution
+
+The new `evolution-tools review` commands separate non-executing drafts,
+inspection, explicit approval and one contained execution attempt. Approval is
+bound to the source, contract, exact arguments and immutable container image.
+Changed proposals and consumed approvals cannot execute through this path.
+See the [reviewed lifecycle walkthrough](docs/reviewed-lifecycle.md) for commands,
+failure handling and trust limits. Existing `run`/`tool-run` commands keep their
+explicit legacy semantics; they are not silently routed through review.
+
 ## Install And Test
 
 Python 3.12+ in a dedicated virtual environment:
