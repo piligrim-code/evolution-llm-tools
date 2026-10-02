@@ -1,8 +1,15 @@
-# Evolution LLM Tools
+# Toolwright
 
-An experimental Ollama client that proposes small Python tools and keeps a
-local registry. The installed import namespace is `alita`, matching the
-original module layout. This is not a production autonomous-agent platform.
+Toolwright is an experimental Ollama client for generating small Python tools,
+explicitly controlled execution, and reuse through a local registry. It was
+previously named Evolution LLM Tools. This is not a production autonomous-agent
+platform.
+
+The product name is **Toolwright**. For compatibility, the repository and Python
+distribution remain `evolution-llm-tools`, the CLI remains `evolution-tools`, and
+the import namespace remains `alita`. No install command, import or stored tool
+needs changing for this naming update. Toolwright remains independent of MCP
+Memory, with its own code, dependencies and release lifecycle.
 
 ## Install And Test
 
