@@ -34,6 +34,8 @@ jobs:
           $extra = @()
           if ($IsLinux) { $extra += '--containers' }
           python -I tools/qualify_wheel.py --wheel $wheel.FullName --report-dir "$env:RUNNER_TEMP/toolwright-qualification" --require-clean --require-symlinks @extra
+      - name: Check installed module CLI entry point
+        run: python -I -m alita --help
       - name: Retain synthetic test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
