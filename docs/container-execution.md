@@ -102,3 +102,8 @@ Fixtures are hand-written and use
 only temporary synthetic data; no customer data or model-generated code is run.
 Linux CI is the actual engine qualification. Windows CLI guard tests do not prove
 a particular Docker Desktop/VM deployment until its actual suite has been run.
+
+The October 3, 2026 [local qualification report](qualification-2026-10-03.md)
+records actual Linux-container runs through Docker Desktop for both working source
+and an installed wheel. This qualifies the documented fixtures on that engine,
+not every deployment or resistance to all malicious code.
