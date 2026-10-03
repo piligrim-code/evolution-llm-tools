@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -82,6 +83,8 @@ def test_linked_tool_directory_is_rejected(tmp_path):
     try:
         link.symlink_to(outside, target_is_directory=True)
     except OSError:
+        if os.environ.get('ALITA_REQUIRE_SYMLINKS') == '1':
+            pytest.fail('Symlink creation is required for this qualification')
         pytest.skip('Symlink creation unavailable on this host')
     with pytest.raises(ValueError):
         registry.register('fixture', {'tool.py': 'print(2)'}, {})
@@ -92,6 +95,15 @@ def test_failed_tool_is_not_registered(tmp_path):
     with pytest.raises(ValueError, match='Failed execution'):
         code_runner.register_tool({'tool.py': ''}, {'name': 'bad'}, {'returncode': 1})
     assert not Path(settings.tools_dir).exists()
+
+
+@pytest.mark.parametrize('required', [False, True])
+def test_symlink_unavailability_is_a_failure_only_when_required(tmp_path, monkeypatch, required):
+    monkeypatch.setattr(Path, 'symlink_to', Mock(side_effect=OSError('synthetic privilege unavailable')))
+    monkeypatch.setenv('ALITA_REQUIRE_SYMLINKS', '1' if required else '0')
+    expected = pytest.fail.Exception if required else pytest.skip.Exception
+    with pytest.raises(expected):
+        test_linked_tool_directory_is_rejected(tmp_path)
 
 
 def test_model_metadata_cannot_grant_execution_permission(monkeypatch):

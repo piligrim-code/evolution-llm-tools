@@ -1,28 +1,44 @@
-name: Default-deny execution regressions
+name: Installed-wheel qualification
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
-  test:
+  qualify:
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-2022]
+        python: ['3.12', '3.13']
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.12'
-      - run: python -m pip install ".[dev]"
-      - run: python -m pytest tests -q
-      - run: python -m alita --help
-  container:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+          python-version: ${{ matrix.python }}
+      - name: Build the candidate wheel
+        run: python -m pip wheel . --no-deps --wheel-dir "$env:RUNNER_TEMP/toolwright-wheel"
+      - name: Install only the built wheel and test runner
+        run: |
+          $wheels = @(Get-ChildItem -LiteralPath "$env:RUNNER_TEMP/toolwright-wheel" -Filter '*.whl')
+          if ($wheels.Count -ne 1) { throw 'Expected exactly one candidate wheel' }
+          python -m pip install $wheels[0].FullName pytest
+      - name: Qualify installed bytes and tests
+        run: |
+          $wheel = @(Get-ChildItem -LiteralPath "$env:RUNNER_TEMP/toolwright-wheel" -Filter '*.whl')[0]
+          $extra = @()
+          if ($IsLinux) { $extra += '--containers' }
+          python -I tools/qualify_wheel.py --wheel $wheel.FullName --report-dir "$env:RUNNER_TEMP/toolwright-qualification" --require-clean --require-symlinks @extra
+      - name: Retain synthetic test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          python-version: '3.12'
-      - run: python -m pip install ".[dev]"
-      - run: python tools/run_container_tests.py
+          name: qualification-${{ matrix.os }}-py${{ matrix.python }}
+          path: ${{ runner.temp }}/toolwright-qualification/
+          if-no-files-found: error
+          retention-days: 14

@@ -66,6 +66,10 @@ Default tests use temporary directories, fake model responses and mostly mocked 
 execution. One explicitly approved, hand-written fixture runs in a temporary
 venv and doubles a synthetic number; it does not use generated model output.
 The default tests require no Ollama server, downloaded model or credentials.
+The [installed-wheel qualification gate](docs/ci-qualification.md) checks package
+identity and source/installed bytes, retains structured test evidence, and refuses
+unexpected skips. Hosted CI requires symlink coverage and adds actual Docker
+tests on Ubuntu; unexecuted workflow changes are not a passed Linux-host gate.
 An opt-in Docker suite separately verifies actual OS controls with hand-written
 adversarial synthetic fixtures. It never executes generated model output on the host.
 
