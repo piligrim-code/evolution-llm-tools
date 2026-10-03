@@ -33,6 +33,11 @@ exact text or JSON-object expectations tied to the approved proposal. A process
 exit code of zero no longer makes a contract-bearing CLI run successful when
 its output fails the check. Old proposals retain their explicit legacy behavior.
 
+The separate [validated version catalog](docs/version-catalog.md) preserves an
+explicitly promoted successful proposal. `catalog prepare` copies a selected
+version into a fresh pending review, never into an automatically runnable tool.
+Versions and their first validation provenance are immutable through the API.
+
 ## Install And Test
 
 Python 3.12+ in a dedicated virtual environment:

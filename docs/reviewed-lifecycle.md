@@ -132,12 +132,13 @@ print(record)
 After independently inspecting that record, an operator may call
 `store.approve(proposal_id, inspected_digest, confirm=True)`, then
 `store.execute(proposal_id)`. Approval does not execute anything. The API remains
-experimental; typed outcome categories and a versioned working-tool registry
-belong to the next roadmap stage, not this change.
+experimental; general typed execution-outcome categories remain further work.
+The separate [validated version catalog](version-catalog.md) supports explicit
+promotion of passed v2 receipts and fresh pending proposals for reviewed reuse.
 
 Output assertions are the first part of that next stage, with a small typed
-`OutputValidation` result. The general outcome API and working registry remain
-pending; see [the assertion contract and limitations](output-contracts.md).
+`OutputValidation` result. The general outcome API remains pending; see
+[the assertion contract and limitations](output-contracts.md).
 
 ## Failures And Concurrency
 
@@ -168,7 +169,8 @@ exactly-once distributed operation. No exactly-once guarantee is claimed.
 
 Success is not automatically promoted into the legacy registry. This avoids
 both an execution/registration gap and silently turning a one-use receipt into
-unlimited reuse. Working-tool versioning/promotion is follow-up work.
+unlimited reuse. The separate [catalog](version-catalog.md) offers explicit version
+promotion, but reuse still creates a new pending proposal requiring approval.
 
 ## Data And Trust Boundary
 

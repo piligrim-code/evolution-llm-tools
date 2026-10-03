@@ -98,6 +98,8 @@ class ReviewStore:
             if not self.path.is_file():
                 raise ReviewError("review_store_not_found")
             with self._connection() as db:
+                if db.execute("PRAGMA application_id").fetchone()[0] != 0:
+                    raise ReviewError("not_a_review_store")
                 if db.execute("PRAGMA user_version").fetchone()[0] != 1:
                     raise ReviewError("unsupported_review_store_version")
                 if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='proposals'").fetchone() is None:
@@ -105,6 +107,8 @@ class ReviewStore:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._transaction() as db:
+            if db.execute("PRAGMA application_id").fetchone()[0] != 0:
+                raise ReviewError("not_a_review_store")
             version = db.execute("PRAGMA user_version").fetchone()[0]
             if version not in (0, 1):
                 raise ReviewError("unsupported_review_store_version")
@@ -173,6 +177,20 @@ class ReviewStore:
             return {"id": proposal_id, "digest": row["digest"], "state": row["state"],
                     "document": doc, "result": json_object(row["result"], limit=DOCUMENT_LIMIT)
                     if row["result"] is not None else None}
+
+    def validated_snapshot(self, proposal_id):
+        """Read a completed v2 receipt and recheck it before explicit promotion."""
+        with self._connection() as db:
+            row, doc, _ = self._load(db, proposal_id)
+            if (doc['version'] != 2 or row['state'] != 'finished'
+                    or row['approval'] != row['digest'] or row['result'] is None):
+                raise PermissionError('validated_completed_proposal_required')
+            result = json_object(row['result'], limit=DOCUMENT_LIMIT)
+            validation = validate_output(doc['output_contract'], result)
+            if ('error' in result or validation['status'] != 'passed'
+                    or result.get('output_validation') != validation):
+                raise PermissionError('validated_completed_proposal_required')
+            return {'id': proposal_id, 'digest': row['digest'], 'document': doc, 'result': result}
 
     def list(self, *, state=None, limit=20, before=None):
         """Bounded discovery only: no source, arguments, outputs or approval digest."""
