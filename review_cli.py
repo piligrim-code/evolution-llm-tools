@@ -55,7 +55,7 @@ def inspect_command(ctx: typer.Context, proposal_id: str,
                     as_json: bool = typer.Option(False, "--json", help="Show the complete escaped JSON record.")):
     """Show the code, contract, exact arguments, policy and approval digest."""
     with _errors():
-        record = ReviewStore(ctx.obj).inspect(proposal_id)
+        record = ReviewStore(ctx.obj, read_only=True).inspect(proposal_id)
         if as_json:
             _print_json(record)
         else:
@@ -64,6 +64,16 @@ def inspect_command(ctx: typer.Context, proposal_id: str,
             for filename, source in scripts.items():
                 console.rule(filename)
                 console.print(_display_text(source.encode("utf-8")), markup=False, highlight=False, soft_wrap=True)
+
+
+@app.command("list")
+def list_command(ctx: typer.Context,
+                 state: str = typer.Option(None, help="Filter: pending, approved, claimed, finished or cancelled."),
+                 limit: int = typer.Option(20, min=1, max=100),
+                 before: str = typer.Option(None, help="next_cursor from the preceding page with the same filter.")):
+    """Find proposal IDs without exposing code, arguments or output. No execution."""
+    with _errors():
+        _print_json(ReviewStore(ctx.obj, read_only=True).list(state=state, limit=limit, before=before))
 
 
 @app.command("approve")

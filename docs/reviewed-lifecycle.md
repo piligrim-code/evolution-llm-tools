@@ -52,6 +52,49 @@ To select another one, put the option before the subcommand:
 evolution-tools review --store /private/local/reviews.sqlite3 inspect <proposal-id>
 ```
 
+## Find Existing Proposals
+
+Discovery follow-up: implemented locally, but its tests have not been run.
+Earlier lifecycle test results do not qualify this change.
+
+```sh
+evolution-tools review list --state pending --limit 20
+evolution-tools review list --state claimed --limit 20
+evolution-tools review list --state pending --limit 20 --before <next_cursor>
+```
+
+Without a state filter, all states are eligible. Supported filters are `pending`,
+`approved`, `claimed`, `finished` and `cancelled`; limits are integers 1 through
+100. Results contain only proposal ID, state and `has_result`, plus page count,
+`next_cursor`, `content_included=false` and `integrity_checked=false`. They omit
+source, arguments, names, result text and approval digests. The presence of a
+result is not proof of success, cleanup or valid contents. Inspect a proposal
+explicitly before approving it; listing never verifies source integrity.
+
+Pages use newest insertion order, not last-update time. Pass the returned cursor
+with the same filter for older entries; null means no further matching entries
+in that page's snapshot. An invalid/missing cursor is refused rather than silently
+restarting at page one. New insertions do not shift older cursor pages, but state
+changes between calls can change filter membership: pagination is not a frozen
+multi-page audit. Do not restore, vacuum or edit the database while paging.
+
+`list` and `inspect` open the existing database in SQLite read-only/query-only
+mode, without creating a missing directory/store or initializing its schema.
+They refuse unsupported schema versions. For library discovery use
+`ReviewStore(path, read_only=True).list(state="pending", limit=20, before=None)`;
+mutating methods on that handle refuse writes. Normal writer handles retain their
+existing behavior. SQLite may use ordinary locking sidecars while reading a live
+store; read-only here means no application-data/schema changes, not immutable
+filesystem metadata.
+
+Use the `claimed` filter to find consumed attempts without a final receipt, then
+inspect each one. A claimed attempt may still be running or have an ambiguous
+outcome; discovery does not start/stop Docker, reset approval or retry execution.
+A corrupt source document can still appear in the list even though inspection
+refuses it. IDs and states are metadata and may themselves be sensitive.
+
+## Inspect Exact Content
+
 `inspect` prints source as plain, terminal-sanitized text. `inspect --json` emits
 the full escaped JSON record, including exact source characters, for inspection
 with a trusted JSON viewer. The SHA-256 digest covers the canonical JSON document,
@@ -136,6 +179,7 @@ existing container limits, cleanup rules and kernel-sharing caveats still apply.
 
 ```sh
 python -m pytest tests/test_review.py -q
+python -m pytest tests/test_review_discovery.py -q
 python -m pytest tests -q
 python tools/run_container_tests.py
 ```
