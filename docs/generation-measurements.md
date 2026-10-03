@@ -123,6 +123,14 @@ such as comments alone can pass syntax. Such results stay `unreviewed_source`,
 never approved or correct. Review and separately authorized contained tests remain
 necessary. Current offline fixtures do not establish improved real-model quality.
 
+## Explicit Source Derivation
+
+A separately invoked [source transformation](source-transformations.md) can
+extract exactly one complete Python fence while retaining the original result,
+response hash, derived-source hash and transformation version. It never edits
+the raw record or upgrades it to success. No compilation, model request,
+proposal preparation, approval or execution is implied by this text operation.
+
 ## Failures And Remaining Work
 
 Results require a bounded complete stream and valid final metadata. A final
