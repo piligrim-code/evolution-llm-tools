@@ -95,3 +95,34 @@ def test_actual_non_success_typed_outcome_is_not_promotable(tmp_path, owned, sou
     with pytest.raises(PermissionError):
         VersionCatalog(tmp_path / 'versions.sqlite3').promote(store, identifier, confirm=True)
     assert len(owned) == 1
+
+
+def test_real_execution_then_prune_and_retire_preserves_no_replay(tmp_path, owned):
+    from alita.demo_fixtures import prepare_demo
+
+    store = ReviewStore(tmp_path / 'reviews.sqlite3')
+    policy = ContainerPolicy(os.environ['ALITA_TEST_IMAGE'])
+    prepared = prepare_demo('text-summary', policy, store)
+    identifier = prepared['id']
+    approve(store, identifier)
+    assert store.execute_result(identifier).status is ExecutionStatus.SUCCEEDED
+    catalog = VersionCatalog(tmp_path / 'versions.sqlite3')
+    version = catalog.promote(store, identifier, confirm=True)
+    saved = catalog.inspect(version['name'], version['version'])['record']
+    runner = CliRunner()
+    rp = ['review', '--store', str(store.path), 'prune', identifier]
+    plan = call(runner, rp)
+    assert len(owned) == 1 and plan['applied'] is False
+    assert call(runner, rp + ['--apply', '--plan-digest', plan['plan_digest'], '--yes'])['applied']
+    assert store.execute_result(identifier).status is ExecutionStatus.REFUSED
+    fresh = catalog.prepare(version['name'], version['version'], store)
+    assert store.execute_result(fresh['id']).status is ExecutionStatus.REFUSED
+    approve(store, fresh['id'])
+    assert store.execute_result(fresh['id']).status is ExecutionStatus.SUCCEEDED
+    cp = ['catalog', '--store', str(catalog.path), 'retire', version['name'], version['version']]
+    plan = call(runner, cp)
+    assert call(runner, cp + ['--apply', '--plan-digest', plan['plan_digest'], '--yes'])['applied']
+    assert catalog.inspect(version['name'], version['version'])['record'] == saved
+    with pytest.raises(PermissionError, match='retired'):
+        catalog.prepare(version['name'], version['version'], store)
+    assert len(owned) == 2

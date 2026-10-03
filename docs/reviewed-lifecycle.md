@@ -155,6 +155,8 @@ the local filesystem and storage hardware. Do not use a network filesystem.
 - `claimed`: the attempt was consumed. It may be running, interrupted, or complete
   without a persisted result. This is **not** evidence of success or failure.
 - `finished`: a result or container error was saved, not necessarily a success.
+- `pruned`: an eligible terminal payload was explicitly removed. Its permanent
+  identity cannot be approved, executed or promoted again; see [retention](retention.md).
 
 A nonzero exit, timeout or cleanup error consumes the approval. Even preflight
 failure consumes it conservatively. Unexpected exceptions, process termination
