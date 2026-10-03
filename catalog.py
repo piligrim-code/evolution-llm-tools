@@ -51,15 +51,28 @@ class VersionCatalog:
                 db.execute('PRAGMA application_id=' + str(APPLICATION_ID))
                 db.execute('PRAGMA user_version=1')
             self._check_schema(db)
+            if db.execute('PRAGMA user_version').fetchone()[0] == 1:
+                db.execute('''CREATE TABLE retirements (
+                    name TEXT NOT NULL, version TEXT NOT NULL, record_digest TEXT NOT NULL,
+                    PRIMARY KEY(name, version),
+                    FOREIGN KEY(name, version) REFERENCES versions(name, version))''')
+                for operation in ('UPDATE', 'DELETE'):
+                    db.execute(f'''CREATE TRIGGER retirements_no_{operation.lower()}
+                        BEFORE {operation} ON retirements
+                        BEGIN SELECT RAISE(ABORT, 'catalog_retirements_are_permanent'); END''')
+                db.execute('PRAGMA user_version=2')
 
     @staticmethod
     def _check_schema(db):
         if (db.execute('PRAGMA application_id').fetchone()[0] != APPLICATION_ID
-                or db.execute('PRAGMA user_version').fetchone()[0] != 1):
+                or db.execute('PRAGMA user_version').fetchone()[0] not in (1, 2)):
             raise CatalogError('not_a_supported_version_catalog')
         names = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type IN ('table','trigger')")}
         if not {'versions', 'versions_no_update', 'versions_no_delete'} <= names:
             raise CatalogError('catalog_schema_incomplete')
+        if db.execute('PRAGMA user_version').fetchone()[0] == 2:
+            if not {'retirements', 'retirements_no_update', 'retirements_no_delete'} <= names:
+                raise CatalogError('catalog_schema_incomplete')
 
     @contextmanager
     def _connection(self):
@@ -69,6 +82,7 @@ class VersionCatalog:
         with closing(sqlite3.connect(target, uri=self.read_only, timeout=5, isolation_level=None)) as db:
             db.row_factory = sqlite3.Row
             db.execute('PRAGMA trusted_schema=OFF')
+            db.execute('PRAGMA foreign_keys=ON')
             db.execute('PRAGMA query_only=ON' if self.read_only else 'PRAGMA synchronous=FULL')
             yield db
 
@@ -101,7 +115,14 @@ class VersionCatalog:
                 or doc['spec'].get('name') != name or not isinstance(record['result'], dict)
                 or _digest(_json(doc)) != version):
             raise CatalogError('version_document_changed')
-        return {'name': name, 'version': version, 'sequence': row['sequence'], 'record': record}
+        retired = None
+        if db.execute('PRAGMA user_version').fetchone()[0] == 2:
+            retired = db.execute('SELECT record_digest FROM retirements WHERE name=? AND version=?',
+                                 (name, version)).fetchone()
+            if retired is not None and retired['record_digest'] != row['record_digest']:
+                raise CatalogError('retirement_record_changed')
+        return {'name': name, 'version': version, 'sequence': row['sequence'], 'record': record,
+                'retired': retired is not None}
 
     def promote(self, reviews, proposal_id, *, confirm=False):
         if confirm is not True:
@@ -117,6 +138,8 @@ class VersionCatalog:
         with self._transaction() as db:
             if db.execute('SELECT 1 FROM versions WHERE name=? AND version=?', (name, version)).fetchone():
                 existing = self._load(db, name, version)
+                if existing['retired']:
+                    raise PermissionError('version_retired')
                 return {'promoted': False, 'name': name, 'version': version, 'sequence': existing['sequence']}
             cursor = db.execute('INSERT INTO versions(name,version,record,record_digest) VALUES(?,?,?,?)',
                                 (name, version, encoded, _digest(encoded)))
@@ -125,7 +148,33 @@ class VersionCatalog:
     def inspect(self, name, version):
         name, version = normalized_tool_name(name), _version(version)
         with self._connection() as db:
+            db.execute('BEGIN')
             return {**self._load(db, name, version), 'integrity_checked': True, 'execution_authorized': False}
+
+    def retire(self, name, version, *, plan_digest=None, confirm=False):
+        """Preview or permanently prevent new preparations; keep immutable proof."""
+        if type(confirm) is not bool:
+            raise CatalogError('confirmation_must_be_boolean')
+        name, version = normalized_tool_name(name), _version(version)
+        if confirm and (not isinstance(plan_digest, str) or not re.fullmatch('[a-f0-9]{64}', plan_digest)):
+            raise PermissionError('reviewed_retirement_plan_required')
+        context = self._transaction if confirm else self._connection
+        with context() as db:
+            if not confirm:
+                db.execute('BEGIN')
+            selected = self._load(db, name, version)
+            if selected['retired']:
+                raise PermissionError('version_retired')
+            record_digest = _digest(_json(selected['record']))
+            digest = _digest(_json({'operation': 'retire-v1', 'store': str(self.path),
+                                    'name': name, 'version': version, 'record_digest': record_digest}))
+            if confirm:
+                if digest != plan_digest:
+                    raise CatalogError('retirement_plan_changed')
+                db.execute('INSERT INTO retirements(name,version,record_digest) VALUES(?,?,?)',
+                           (name, version, record_digest))
+            return {'operation': 'retire', 'applied': confirm, 'plan_digest': digest,
+                    'name': name, 'version': version, 'content_included': False}
 
     def list(self, *, name=None, limit=20, before=None):
         if type(limit) is not int or not 1 <= limit <= 100:
@@ -144,14 +193,16 @@ class VersionCatalog:
                 clauses.append('sequence<?')
                 args.append(before)
             where = ' WHERE ' + ' AND '.join(clauses) if clauses else ''
-            rows = db.execute('SELECT name,version,sequence FROM versions' + where +
+            retirement = ("EXISTS(SELECT 1 FROM retirements r WHERE r.name=versions.name AND r.version=versions.version)"
+                          if db.execute('PRAGMA user_version').fetchone()[0] == 2 else '0')
+            rows = db.execute('SELECT name,version,sequence,' + retirement + ' AS retired FROM versions' + where +
                               ' ORDER BY sequence DESC LIMIT ?', (*args, limit + 1)).fetchall()
             items = []
             for row in rows[:limit]:
                 if normalized_tool_name(row['name']) != row['name']:
                     raise CatalogError('invalid_version_name')
                 _version(row['version'])
-                items.append(dict(row))
+                items.append({**dict(row), 'retired': bool(row['retired'])})
             return {'versions': items, 'count': len(items),
                     'next_cursor': items[-1]['sequence'] if len(rows) > limit else None,
                     'content_included': False, 'integrity_checked': False}
@@ -161,6 +212,8 @@ class VersionCatalog:
         if (args is None) != (output_contract is None):
             raise CatalogError('new_arguments_require_new_output_contract')
         selected = self.inspect(name, version)
+        if selected['retired']:
+            raise PermissionError('version_retired')
         doc, result = selected['record']['document'], selected['record']['result']
         try:
             policy = ContainerPolicy(doc['policy']['image'], doc['policy']['timeout'])

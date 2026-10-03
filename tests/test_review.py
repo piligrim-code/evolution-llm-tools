@@ -364,7 +364,7 @@ def test_invalid_or_missing_ids(store, identifier):
 
 def test_unknown_schema_version_is_not_overwritten(store):
     with sqlite3.connect(store.path) as db:
-        db.execute("PRAGMA user_version=2")
+        db.execute("PRAGMA user_version=99")
     with pytest.raises(review.ReviewError, match="unsupported_review_store_version"):
         review.ReviewStore(store.path)
 

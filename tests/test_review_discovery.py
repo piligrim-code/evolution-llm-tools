@@ -156,7 +156,7 @@ def test_read_only_option_is_not_coerced(store):
 
 def test_read_only_inspection_refuses_future_version_without_migration(store):
     with closing(sqlite3.connect(store.path)) as db, db:
-        db.execute('PRAGMA user_version=2')
+        db.execute('PRAGMA user_version=99')
     before = store.path.read_bytes()
     with pytest.raises(review.ReviewError, match='unsupported_review_store_version'):
         review.ReviewStore(store.path, read_only=True)

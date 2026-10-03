@@ -115,3 +115,24 @@ def cancel_command(ctx: typer.Context, proposal_id: str):
     with _errors():
         ReviewStore(ctx.obj).cancel(proposal_id)
         _print_json({"id": proposal_id, "state": "cancelled"})
+
+
+@app.command('prune')
+def prune_command(ctx: typer.Context, proposal_ids: list[str] = typer.Argument(...),
+                  apply: bool = typer.Option(False, '--apply', help='Apply the previously inspected plan.'),
+                  plan_digest: str = typer.Option(None, help='Exact digest returned by the preview.'),
+                  yes: bool = typer.Option(False, '--yes', help='Confirm irreversible removal of selected payloads.')):
+    """Preview terminal payload removal. Retain IDs; never touch running attempts."""
+    with _errors():
+        reader = ReviewStore(ctx.obj, read_only=True)
+        preview = reader.prune(proposal_ids)
+        if not apply:
+            if yes or plan_digest is not None:
+                raise ValueError('apply_required_for_confirmation')
+            _print_json(preview)
+            return
+        if plan_digest != preview['plan_digest']:
+            raise ValueError('reviewed_prune_plan_required')
+        if not yes:
+            typer.confirm('Permanently remove these selected review payloads?', default=False, abort=True)
+        _print_json(ReviewStore(ctx.obj).prune(proposal_ids, plan_digest=plan_digest, confirm=True))

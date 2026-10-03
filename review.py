@@ -13,7 +13,7 @@ from .output_contracts import normalize_output_contract, validate_output
 from .outcomes import ExecutionOutcome, _Attempt, _completed_outcome, _exception_outcome
 
 DOCUMENT_LIMIT = 2_000_000
-PROPOSAL_STATES = ("pending", "approved", "claimed", "finished", "cancelled")
+PROPOSAL_STATES = ("pending", "approved", "claimed", "finished", "cancelled", "pruned")
 
 
 class ReviewError(ValueError):
@@ -101,7 +101,7 @@ class ReviewStore:
             with self._connection() as db:
                 if db.execute("PRAGMA application_id").fetchone()[0] != 0:
                     raise ReviewError("not_a_review_store")
-                if db.execute("PRAGMA user_version").fetchone()[0] != 1:
+                if db.execute("PRAGMA user_version").fetchone()[0] not in (1, 2):
                     raise ReviewError("unsupported_review_store_version")
                 if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='proposals'").fetchone() is None:
                     raise ReviewError("invalid_review_store")
@@ -111,12 +111,16 @@ class ReviewStore:
             if db.execute("PRAGMA application_id").fetchone()[0] != 0:
                 raise ReviewError("not_a_review_store")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1):
+            if version not in (0, 1, 2):
                 raise ReviewError("unsupported_review_store_version")
             db.execute("""CREATE TABLE IF NOT EXISTS proposals (
                 id TEXT PRIMARY KEY, document TEXT NOT NULL, digest TEXT NOT NULL,
                 state TEXT NOT NULL, approval TEXT, result TEXT)""")
-            db.execute("PRAGMA user_version=1")
+            for operation in ('UPDATE', 'DELETE'):
+                db.execute(f"""CREATE TRIGGER IF NOT EXISTS proposals_pruned_no_{operation.lower()}
+                    BEFORE {operation} ON proposals WHEN OLD.state='pruned'
+                    BEGIN SELECT RAISE(ABORT, 'pruned_proposals_are_terminal'); END""")
+            db.execute("PRAGMA user_version=2")
 
     @contextmanager
     def _connection(self):
@@ -151,6 +155,8 @@ class ReviewStore:
         row = db.execute("SELECT * FROM proposals WHERE id=?", (proposal_id,)).fetchone()
         if row is None:
             raise ReviewError("proposal_not_found")
+        if row['state'] == 'pruned':
+            raise PermissionError('proposal_payload_pruned')
         doc = json_object(row["document"], limit=DOCUMENT_LIMIT)
         if _digest(_json(doc)) != row["digest"]:
             raise ReviewError("proposal_content_changed")
@@ -174,6 +180,13 @@ class ReviewStore:
 
     def inspect(self, proposal_id):
         with self._connection() as db:
+            db.execute('BEGIN')
+            _proposal_id(proposal_id)
+            row = db.execute('SELECT * FROM proposals WHERE id=?', (proposal_id,)).fetchone()
+            if row is not None and row['state'] == 'pruned':
+                return {'id': proposal_id, 'digest': row['digest'], 'state': 'pruned',
+                        'document': None, 'result': None,
+                        'retention': json_object(row['document'], limit=DOCUMENT_LIMIT)}
             row, doc, _ = self._load(db, proposal_id)
             return {"id": proposal_id, "digest": row["digest"], "state": row["state"],
                     "document": doc, "result": json_object(row["result"], limit=DOCUMENT_LIMIT)
@@ -226,6 +239,59 @@ class ReviewStore:
             return {"proposals": items, "count": len(items),
                     "next_cursor": items[-1]["id"] if len(rows) > limit else None,
                     "content_included": False, "integrity_checked": False}
+
+    def prune(self, proposal_ids, *, plan_digest=None, confirm=False):
+        """Preview or atomically remove terminal payloads, retaining permanent IDs."""
+        if type(confirm) is not bool:
+            raise ReviewError('confirmation_must_be_boolean')
+        if (type(proposal_ids) not in (list, tuple) or not 1 <= len(proposal_ids) <= 100):
+            raise ReviewError('select_1_to_100_proposals')
+        identifiers = sorted(_proposal_id(value) for value in proposal_ids)
+        if len(set(identifiers)) != len(identifiers):
+            raise ReviewError('duplicate_proposal_selection')
+        if confirm and (not isinstance(plan_digest, str) or not re.fullmatch('[a-f0-9]{64}', plan_digest)):
+            raise PermissionError('reviewed_prune_plan_required')
+        context = self._transaction if confirm else self._connection
+        with context() as db:
+            if not confirm:
+                db.execute('BEGIN')
+            rows, summaries = [], []
+            for identifier in identifiers:
+                row = db.execute('SELECT * FROM proposals WHERE id=?', (identifier,)).fetchone()
+                if row is None:
+                    raise ReviewError('proposal_not_found')
+                if row['state'] not in ('finished', 'cancelled'):
+                    raise PermissionError('only_finished_or_cancelled_can_be_pruned')
+                if row['state'] == 'finished':
+                    if row['result'] is None:
+                        raise PermissionError('finished_receipt_required_for_pruning')
+                    receipt = json_object(row['result'], limit=DOCUMENT_LIMIT)
+                    if receipt.get('error') == 'cleanup_unconfirmed':
+                        raise PermissionError('unresolved_cleanup_receipt_must_be_retained')
+                # Maintenance remains possible after execution-policy drift, but
+                # never treats a changed document as the originally approved one.
+                if _digest(_json(json_object(row['document'], limit=DOCUMENT_LIMIT))) != row['digest']:
+                    raise ReviewError('proposal_content_changed')
+                rows.append({'id': identifier, 'state': row['state'], 'digest': row['digest'],
+                             'approval': row['approval'], 'document_sha256': _digest(row['document']),
+                             'result_sha256': _digest(row['result']) if row['result'] is not None else None})
+                summaries.append({'id': identifier, 'state': row['state'], 'digest': row['digest'],
+                                  'payload_bytes': len(row['document'].encode('utf-8')) +
+                                  len((row['result'] or '').encode('utf-8'))})
+            digest = _digest(_json({'operation': 'prune-v1', 'store': str(self.path),
+                                    'rows': rows}))
+            if confirm:
+                if digest != plan_digest:
+                    raise ReviewError('prune_plan_changed')
+                for row, summary in zip(rows, summaries):
+                    marker = {'format': 'toolwright-pruned-v1', 'previous_state': row['state'],
+                              'result_sha256': row['result_sha256'],
+                              'removed_payload_bytes': summary['payload_bytes']}
+                    db.execute("UPDATE proposals SET state='pruned',document=?,approval=NULL,result=NULL WHERE id=?",
+                               (_json(marker), row['id']))
+            return {'operation': 'prune', 'applied': confirm, 'plan_digest': digest,
+                    'proposals': summaries, 'count': len(summaries), 'content_included': False,
+                    'payload_bytes': sum(item['payload_bytes'] for item in summaries)}
 
     def approve(self, proposal_id, digest, *, confirm=False):
         if confirm is not True:

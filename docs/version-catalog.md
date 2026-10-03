@@ -132,9 +132,10 @@ may use locking sidecars on reads; readonly does not mean immutable OS metadata.
 Records contain private plaintext source, arguments, expectations and outputs.
 Even names/hashes can be sensitive. Protect directories/backups and keep `.mcp/`
 out of Git. Each canonical record is bounded by the existing 2,000,000-byte review
-limit. No automatic pruning, retirement, quota policy or remote sync is provided.
-Do not bypass immutable triggers as routine maintenance; retention needs a later
-explicit design.
+limit. [Explicit retirement](retention.md) prevents new preparation snapshots
+while preserving immutable content and provenance. It cannot revoke existing
+proposals or erase catalog data. No automatic pruning, quota or remote sync is
+provided. Do not bypass immutable triggers as routine maintenance.
 
 ## Verification And Remaining Work
 
@@ -151,6 +152,6 @@ promotion and independently approved reuse with changed inputs, and refusal of
 incorrect output. All fixtures use synthetic data.
 
 An additive [typed execution-result API](typed-outcomes.md) and three
-[packaged deterministic demos](demos.md) are now available. Explicit retention/
-pruning policy remains further EVO-2 work, along with native Linux-host CI and
-separate external/model evaluation. No full production qualification is implied.
+[packaged deterministic demos](demos.md) are now available, along with explicit
+[retention and retirement](retention.md). Native Linux-host CI and separate
+external/model evaluation remain gates. No full production qualification is implied.

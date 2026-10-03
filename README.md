@@ -45,6 +45,13 @@ without automatic retries. Three [packaged deterministic demos](docs/demos.md)
 cover text summaries, grouped tabular totals and JSON projection. `demo prepare`
 only creates a pending proposal; normal inspection and approval remain mandatory.
 
+[Explicit retention](docs/retention.md) adds read-only `review prune` previews
+and permanent `catalog retire` markers. Applying a plan requires its inspected
+digest and confirmation. Pruned IDs remain terminal; retirement retains proof
+and does not revoke existing proposals. No automatic deletion or secure erasure
+is provided. Writable opens upgrade private stores to schema 2; stop old clients
+before upgrading.
+
 ## Install And Test
 
 Python 3.12+ in a dedicated virtual environment:

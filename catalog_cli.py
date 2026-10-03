@@ -54,3 +54,23 @@ def prepare_command(ctx: typer.Context, name: str, version: str,
         catalog = VersionCatalog(ctx.obj['store'], read_only=True)
         reviews = ReviewStore(ctx.obj['reviews'])
         _print_json(catalog.prepare(name, version, reviews, args=arguments, output_contract=contract))
+
+
+@app.command('retire')
+def retire_command(ctx: typer.Context, name: str, version: str,
+                   apply: bool = typer.Option(False, '--apply', help='Apply the inspected retirement plan.'),
+                   plan_digest: str = typer.Option(None, help='Exact digest returned by the preview.'),
+                   yes: bool = typer.Option(False, '--yes', help='Confirm permanent retirement, retaining history.')):
+    """Preview disabling future preparations. Existing proposals are unaffected."""
+    with _errors():
+        preview = VersionCatalog(ctx.obj['store'], read_only=True).retire(name, version)
+        if not apply:
+            if yes or plan_digest is not None:
+                raise ValueError('apply_required_for_confirmation')
+            _print_json(preview)
+            return
+        if plan_digest != preview['plan_digest']:
+            raise ValueError('reviewed_retirement_plan_required')
+        if not yes:
+            typer.confirm('Permanently retire this version while retaining its history?', default=False, abort=True)
+        _print_json(VersionCatalog(ctx.obj['store']).retire(name, version, plan_digest=plan_digest, confirm=True))
