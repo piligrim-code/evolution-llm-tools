@@ -6,9 +6,11 @@ from .config import settings
 from .container_runner import ContainerPolicy, ContainerError, require_execution_mode, _display_text
 from .llm import OllamaError
 from .review_cli import app as review_app
+from .catalog_cli import app as catalog_app
 
 app = typer.Typer()
 app.add_typer(review_app, name="review")
+app.add_typer(catalog_app, name="catalog")
 console = Console()
 
 @app.command()

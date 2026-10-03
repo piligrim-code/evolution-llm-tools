@@ -147,8 +147,9 @@ automatic approval renewal or mutation of old proposals.
 Legacy manager/registry/unsafe-execution commands are unchanged and do not acquire
 these assertions. Runtime result metadata is additive; the executor boundary and
 immutable-image requirements are unchanged. A general typed execution-outcome
-API, versioned registration/promotion and reusable input-specific validations
-remain further EVO-2 work.
+API remains further EVO-2 work. Explicit [version promotion and fresh reviewed
+reuse](version-catalog.md) are now available in a separate catalog; entries never
+grant execution permission by themselves.
 
 ## Verification
 
