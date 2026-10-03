@@ -150,6 +150,7 @@ policies and fresh pending reuse. Actual Docker fixtures cover execution through
 promotion and independently approved reuse with changed inputs, and refusal of
 incorrect output. All fixtures use synthetic data.
 
-The general typed execution-result API, retention/pruning policy and three
-packaged deterministic demos remain further EVO-2 work, along with native
-Linux-host CI and separate external/model evaluation.
+An additive [typed execution-result API](typed-outcomes.md) and three
+[packaged deterministic demos](demos.md) are now available. Explicit retention/
+pruning policy remains further EVO-2 work, along with native Linux-host CI and
+separate external/model evaluation. No full production qualification is implied.

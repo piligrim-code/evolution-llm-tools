@@ -38,6 +38,12 @@ explicitly promoted successful proposal. `catalog prepare` copies a selected
 version into a fresh pending review, never into an automatically runnable tool.
 Versions and their first validation provenance are immutable through the API.
 
+`review execute --structured` and `ReviewStore.execute_result()` provide
+[typed per-attempt outcomes](docs/typed-outcomes.md), including ambiguous failures
+without automatic retries. Three [packaged deterministic demos](docs/demos.md)
+cover text summaries, grouped tabular totals and JSON projection. `demo prepare`
+only creates a pending proposal; normal inspection and approval remain mandatory.
+
 ## Install And Test
 
 Python 3.12+ in a dedicated virtual environment:

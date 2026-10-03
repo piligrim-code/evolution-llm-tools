@@ -98,6 +98,7 @@ class ContainerExecutor:
         self.name = "alita-box-" + self.owner
         self.container_id = None
         self._attempted = False
+        self._cleanup_confirmed = False
 
     def _docker(self, *args, check=True, timeout=15):
         command = ["docker"]
@@ -221,6 +222,7 @@ class ContainerExecutor:
         finally:
             try:
                 self._remove()
+                self._cleanup_confirmed = True
             except Exception:
                 raise ContainerError("cleanup_unconfirmed", self.name) from None
 
