@@ -67,6 +67,10 @@ local request elapsed time, explicit settings and optional provider counters.
 Legacy text APIs are unchanged; generated text is omitted from summaries by
 default. Evaluation records bind the frozen prompt and response without approving
 or executing code. Model aliases are not verified artifact identities.
+The local measured-generation candidate passed 549 default tests from source
+and an installed wheel, plus 37 actual Docker checks on the wheel; see
+[the qualification report](docs/generation-qualification-2026-10-03.md).
+No real-model inference is included in those results.
 
 ## Install And Test
 
