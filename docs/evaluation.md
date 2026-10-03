@@ -120,6 +120,9 @@ scored, with four available for this separate classification evaluation.
 Answers use exact canonical JSON, including numeric/boolean type distinctions.
 Task instructions explicitly require a floating-point median for nonempty input.
 No fuzzy matching, model-as-judge or automatic tolerance tuning is used.
+Successful grading commands exit zero even when the supplied answer is incorrect
+or cases are missing: inspect the reported statuses/counts, not the command's
+exit code, to assess correctness. Invalid inputs or inaccessible stores are errors.
 
 Current receipts record stdout byte count and configured execution limits, not
 generation latency, execution wall time, peak memory or token counts. Unavailable
