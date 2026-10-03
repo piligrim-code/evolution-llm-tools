@@ -21,6 +21,10 @@ See the [reviewed lifecycle walkthrough](docs/reviewed-lifecycle.md) for command
 failure handling and trust limits. Existing `run`/`tool-run` commands keep their
 explicit legacy semantics; they are not silently routed through review.
 
+The local discovery follow-up adds `review list` with state filters/pagination
+and read-only `list`/`inspect` handles. Its regression tests are written but have
+not been run; this is not a newly qualified release.
+
 ## Install And Test
 
 Python 3.12+ in a dedicated virtual environment:
