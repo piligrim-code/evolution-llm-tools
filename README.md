@@ -72,6 +72,12 @@ and an installed wheel, plus 37 actual Docker checks on the wheel; see
 [the qualification report](docs/generation-qualification-2026-10-03.md).
 No real-model inference is included in those results.
 
+Opt-in prompt v2 makes the argv and JSON-output contract explicit and rejects
+malformed source without executing it. V1 prompts remain frozen. Syntax success
+still means unreviewed, not correct or approved. The local v2 candidate passed
+606 default tests from source and an installed wheel; see
+[the qualification and remaining limits](docs/prompt-v2-qualification-2026-10-03.md).
+
 ## Install And Test
 
 Python 3.12+ in a dedicated virtual environment:
