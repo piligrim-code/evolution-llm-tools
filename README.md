@@ -21,9 +21,11 @@ See the [reviewed lifecycle walkthrough](docs/reviewed-lifecycle.md) for command
 failure handling and trust limits. Existing `run`/`tool-run` commands keep their
 explicit legacy semantics; they are not silently routed through review.
 
-The local discovery follow-up adds `review list` with state filters/pagination
-and read-only `list`/`inspect` handles. Its regression tests are written but have
-not been run; this is not a newly qualified release.
+Discovery adds `review list` with state filters/pagination and read-only
+`list`/`inspect` handles. Local source and installed-wheel qualification each
+passed 252 default tests and 9 actual Linux container tests; the Windows symlink
+case remains skipped. See [the exact-commit report and limits](docs/qualification-2026-10-03.md).
+This is experimental software, not a production release certification.
 
 ## Install And Test
 

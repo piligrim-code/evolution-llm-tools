@@ -54,8 +54,9 @@ evolution-tools review --store /private/local/reviews.sqlite3 inspect <proposal-
 
 ## Find Existing Proposals
 
-Discovery follow-up: implemented locally, but its tests have not been run.
-Earlier lifecycle test results do not qualify this change.
+Discovery at implementation commit `125ec0d` passed local source and installed-wheel
+qualification, including the actual Linux container suite. See
+[the exact-commit results and remaining gaps](qualification-2026-10-03.md).
 
 ```sh
 evolution-tools review list --state pending --limit 20
