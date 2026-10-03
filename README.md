@@ -23,12 +23,13 @@ explicit legacy semantics; they are not silently routed through review.
 
 Discovery adds `review list` with state filters/pagination and read-only
 `list`/`inspect` handles. Local source and installed-wheel qualification including
-output contracts and the version catalog each passed 359 default tests and 15 actual Linux container
-tests; the Windows symlink case remains skipped. See
-[the exact-commit report and limits](docs/catalog-qualification-2026-10-03.md).
+output contracts, the version catalog, typed outcomes and packaged demos each
+passed 395 default tests and 20 actual Linux container tests; the Windows symlink
+case remains skipped. See
+[the exact-commit report and limits](docs/outcomes-qualification-2026-10-03.md).
 This is experimental software, not a production release certification.
 
-The next checkpoint adds optional [reviewed output contracts](docs/output-contracts.md):
+Optional [reviewed output contracts](docs/output-contracts.md) provide
 exact text or JSON-object expectations tied to the approved proposal. A process
 exit code of zero no longer makes a contract-bearing CLI run successful when
 its output fails the check. Old proposals retain their explicit legacy behavior.
