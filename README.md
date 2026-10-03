@@ -22,9 +22,10 @@ failure handling and trust limits. Existing `run`/`tool-run` commands keep their
 explicit legacy semantics; they are not silently routed through review.
 
 Discovery adds `review list` with state filters/pagination and read-only
-`list`/`inspect` handles. Local source and installed-wheel qualification each
-passed 252 default tests and 9 actual Linux container tests; the Windows symlink
-case remains skipped. See [the exact-commit report and limits](docs/qualification-2026-10-03.md).
+`list`/`inspect` handles. Local source and installed-wheel qualification including
+output contracts each passed 313 default tests and 13 actual Linux container
+tests; the Windows symlink case remains skipped. See
+[the exact-commit report and limits](docs/output-contract-qualification-2026-10-03.md).
 This is experimental software, not a production release certification.
 
 The next checkpoint adds optional [reviewed output contracts](docs/output-contracts.md):

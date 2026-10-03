@@ -1,5 +1,8 @@
 # Reviewed Output Contracts
 
+See [the exact-commit source/wheel/Docker qualification](output-contract-qualification-2026-10-03.md)
+for test results and remaining gaps.
+
 An exit code of zero proves only that the process exited without reporting an
 error. A reviewed proposal can now carry an independently supplied assertion
 about stdout for its exact arguments. This is the first output-validation part
