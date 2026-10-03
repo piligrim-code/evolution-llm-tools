@@ -78,6 +78,11 @@ still means unreviewed, not correct or approved. The local v2 candidate passed
 606 default tests from source and an installed wheel; see
 [the qualification and remaining limits](docs/prompt-v2-qualification-2026-10-03.md).
 
+An explicit [source transformation](docs/source-transformations.md) can remove
+one complete Python fence while preserving the original observation and separate
+source hashes. It does not compile or approve the result. Source and installed
+wheel passed 678 default tests; see [qualification](docs/source-transformation-qualification-2026-10-03.md).
+
 ## Install And Test
 
 Python 3.12+ in a dedicated virtual environment:
