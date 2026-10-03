@@ -82,6 +82,47 @@ labels are graded; malformed/prose output is `invalid_response`. Records explici
 do not prove who generated the content: callers can construct dataclasses and
 servers can misreport metadata. Binding detects mixed observations, not forgery.
 
+## Opt-In Prompt V2
+
+The original corpus, `generation_prompt()` and `decision_prompt()` remain frozen.
+`evaluation_prompt(task_id, mode="source", version="v2")` adds an explicit argv
+contract: `sys.argv[1]` is `--json`, `sys.argv[2]` is the JSON object string,
+and `args["data"]` is the required data object. Valid inputs produce one JSON
+result on stdout; invalid inputs use stderr and a nonzero exit. No shell command
+construction is needed. Version `v1` remains the default.
+
+```python
+from alita.evaluation_prompts import evaluation_prompt
+
+prompt = evaluation_prompt("integer-sum", version="v2")
+# After a separately authorized provider request using this exact prompt:
+# record = record_generation("integer-sum", result,
+#     expected_corpus_sha256=corpus_digest(), prompt_version="v2")
+```
+
+Supply the same `prompt_version` to `record_generation`. Versions are bound by
+the exact prompt/request hashes, including decision/refusal prompts; a v1 result
+cannot be relabelled v2. Task expectations and corpus identity do not change.
+Records add `prompt_version` and `source_check`. V1 keeps its previous statuses
+and has `source_check=None`; decision records also have no source check.
+
+For v2 source only, recording checks the 128 KiB UTF-8 bound, nonempty text,
+opening Markdown fences, a trailing `REQUIREMENTS:` marker and Python syntax.
+Malformed source is `invalid_source` with a fixed reason, never repaired or
+retried. `source_check.syntax_valid` is null when compilation was not attempted,
+false for a compilation failure, and true after compilation succeeds. Syntax
+checking compiles to a temporary code object but never executes/imports it or
+creates a proposal. Compiler warnings/exceptions are not echoed, since they can
+include source. The exact returned-text hash is retained, with no fence removal.
+
+This is not a sandbox or semantic validator. Compilation happens in the operator
+process, with a text-size bound but no separate CPU/memory isolation. Valid syntax
+can still read host files, perform network I/O, reverse argv positions, hardcode
+answers or produce invalid output if executed. Even an empty-behavior program
+such as comments alone can pass syntax. Such results stay `unreviewed_source`,
+never approved or correct. Review and separately authorized contained tests remain
+necessary. Current offline fixtures do not establish improved real-model quality.
+
 ## Failures And Remaining Work
 
 Results require a bounded complete stream and valid final metadata. A final
