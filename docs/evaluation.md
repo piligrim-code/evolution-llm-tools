@@ -130,6 +130,12 @@ measurements are `null`; configured bounds are reported separately, never as
 measured utilization. Cleanup is `not_recorded` unless an explicit unconfirmed
 cleanup error is present. Do not infer performance or resource efficiency here.
 
+An additive [generation observation API](generation-measurements.md) captures
+client elapsed time and optional provider token/duration counters for an explicit
+model call. `record_generation` binds that observation to a frozen prompt/corpus
+without creating or executing proposals. It does not backfill older execution
+receipts or independently verify model artifacts.
+
 ## Verification And Remaining Work
 
 `tests/evaluation_reference.py` contains handwritten baselines, separate from

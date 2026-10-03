@@ -62,6 +62,12 @@ The local evaluation candidate passed 496 default and 37 actual Docker tests
 from source and an installed wheel; see [its qualification report](docs/evaluation-qualification-2026-10-03.md).
 This new candidate has not yet received hosted CI qualification.
 
+The additive [measured generation API](docs/generation-measurements.md) records
+local request elapsed time, explicit settings and optional provider counters.
+Legacy text APIs are unchanged; generated text is omitted from summaries by
+default. Evaluation records bind the frozen prompt and response without approving
+or executing code. Model aliases are not verified artifact identities.
+
 ## Install And Test
 
 Python 3.12+ in a dedicated virtual environment:
