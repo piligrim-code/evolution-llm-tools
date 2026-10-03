@@ -51,6 +51,13 @@ and does not revoke existing proposals. No automatic deletion or secure erasure
 is provided. Writable opens upgrade private stores to schema 2; stop old clients
 before upgrading.
 
+An [offline evaluation corpus](docs/evaluation.md) fixes 20 synthetic tasks:
+16 runnable tasks with 48 example/held-out cases, and four policy-refusal tasks.
+`eval prepare` only creates pending reviews; `eval score` revalidates existing
+receipts and counts missing cases. It does not call models or automatically run
+candidates. Real-model quality and unavailable timing/resource metrics remain
+unqualified rather than being inferred from handwritten fixture results.
+
 ## Install And Test
 
 Python 3.12+ in a dedicated virtual environment:
