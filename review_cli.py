@@ -10,6 +10,7 @@ from .container_runner import ContainerError, ContainerPolicy, _display_text
 from .contracts import json_object
 from .llm import OllamaError
 from .review import ReviewStore, propose
+from .outcomes import ExecutionStatus
 
 app = typer.Typer(no_args_is_help=True, help="Review a draft before one contained execution attempt.")
 console = Console()
@@ -91,10 +92,18 @@ def approve_command(ctx: typer.Context, proposal_id: str,
 
 
 @app.command("execute")
-def execute_command(ctx: typer.Context, proposal_id: str):
+def execute_command(ctx: typer.Context, proposal_id: str,
+                    structured: bool = typer.Option(False, '--structured', help='Return a typed v2-only attempt outcome; never retry.')):
     """Consume an existing approval. Never retry or fall back to host execution."""
     with _errors():
-        result = ReviewStore(ctx.obj).execute(proposal_id)
+        store = ReviewStore(ctx.obj)
+        if structured:
+            outcome = store.execute_result(proposal_id)
+            _print_json(outcome.to_dict())
+            if outcome.status != ExecutionStatus.SUCCEEDED:
+                raise typer.Exit(code=1)
+            return
+        result = store.execute(proposal_id)
         _print_json(result)
         if result["returncode"] != 0 or result.get("output_validation", {}).get("status", "passed") != "passed":
             raise typer.Exit(code=1)

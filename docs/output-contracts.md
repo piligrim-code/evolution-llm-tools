@@ -146,8 +146,8 @@ automatic approval renewal or mutation of old proposals.
 
 Legacy manager/registry/unsafe-execution commands are unchanged and do not acquire
 these assertions. Runtime result metadata is additive; the executor boundary and
-immutable-image requirements are unchanged. A general typed execution-outcome
-API remains further EVO-2 work. Explicit [version promotion and fresh reviewed
+immutable-image requirements are unchanged. An additive [typed execution-outcome
+API](typed-outcomes.md) is available without changing the raw API. Explicit [version promotion and fresh reviewed
 reuse](version-catalog.md) are now available in a separate catalog; entries never
 grant execution permission by themselves.
 

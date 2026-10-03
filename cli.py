@@ -7,10 +7,12 @@ from .container_runner import ContainerPolicy, ContainerError, require_execution
 from .llm import OllamaError
 from .review_cli import app as review_app
 from .catalog_cli import app as catalog_app
+from .demo_cli import app as demo_app
 
 app = typer.Typer()
 app.add_typer(review_app, name="review")
 app.add_typer(catalog_app, name="catalog")
+app.add_typer(demo_app, name="demo")
 console = Console()
 
 @app.command()

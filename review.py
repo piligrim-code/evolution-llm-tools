@@ -10,6 +10,7 @@ from . import container_runner as runner
 from .contracts import bounded_text, json_object, tool_spec
 from .execution_policy import normalized_tool_name, reject_linked_path
 from .output_contracts import normalize_output_contract, validate_output
+from .outcomes import ExecutionOutcome, _Attempt, _completed_outcome, _exception_outcome
 
 DOCUMENT_LIMIT = 2_000_000
 PROPOSAL_STATES = ("pending", "approved", "claimed", "finished", "cancelled")
@@ -252,18 +253,42 @@ class ReviewStore:
                 raise ReviewError("execution_receipt_not_saved")
 
     def execute(self, proposal_id):
+        return self._execute_attempt(proposal_id, _Attempt(), require_contract=False)
+
+    def execute_result(self, proposal_id) -> ExecutionOutcome:
+        """One v2-only attempt with typed failure semantics; never retry/reapprove."""
+        attempt = _Attempt()
+        try:
+            self._execute_attempt(proposal_id, attempt, require_contract=True)
+        except Exception as error:
+            return _exception_outcome(proposal_id, attempt, error)
+        return _completed_outcome(proposal_id, attempt)
+
+    def _execute_attempt(self, proposal_id, attempt, *, require_contract):
+        if self.read_only:
+            attempt.refusal_reason = 'read_only_review_store'
         with self._transaction() as db:
             row, doc, policy = self._load(db, proposal_id)
+            if require_contract and doc['version'] != 2:
+                attempt.refusal_reason = 'output_contract_required'
+                raise PermissionError('output_contract_required')
             if row["state"] != "approved" or row["approval"] != row["digest"]:
                 raise PermissionError("proposal_not_approved_or_already_attempted")
             # Commit consumption BEFORE calling any executor. Even ambiguous failures
             # remain consumed; another process cannot claim this approval again.
+            attempt.claim_started = True
             db.execute("UPDATE proposals SET state='claimed' WHERE id=?", (proposal_id,))
+        attempt.claimed = True
         try:
-            result = runner.ContainerExecutor(policy).run(doc["scripts"], doc["args"])
+            attempt.executor = runner.ContainerExecutor(policy)
+            result = attempt.executor.run(doc["scripts"], doc["args"])
+            attempt.returned = True
+            attempt.result = result if isinstance(result, dict) else None
         except runner.ContainerError as error:
             try:
+                attempt.receipt_started = True
                 self._finish(proposal_id, {"error": error.code, "resource": error.resource})
+                attempt.receipt_saved = True
             except Exception as receipt_error:
                 # Preserve the owned-resource identity even when the disk fails.
                 raise error from receipt_error
@@ -271,7 +296,10 @@ class ReviewStore:
         # Unexpected errors/interrupts or failed persistence leave state=claimed.
         if doc["version"] == 2:
             result = {**result, "output_validation": validate_output(doc["output_contract"], result)}
+        attempt.result = result
+        attempt.receipt_started = True
         self._finish(proposal_id, result)
+        attempt.receipt_saved = True
         return result
 
 

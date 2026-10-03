@@ -132,13 +132,14 @@ print(record)
 After independently inspecting that record, an operator may call
 `store.approve(proposal_id, inspected_digest, confirm=True)`, then
 `store.execute(proposal_id)`. Approval does not execute anything. The API remains
-experimental; general typed execution-outcome categories remain further work.
+experimental; an additive [typed outcome API](typed-outcomes.md) is available
+without changing the original raw execution API.
 The separate [validated version catalog](version-catalog.md) supports explicit
 promotion of passed v2 receipts and fresh pending proposals for reviewed reuse.
 
 Output assertions are the first part of that next stage, with a small typed
-`OutputValidation` result. The general outcome API remains pending; see
-[the assertion contract and limitations](output-contracts.md).
+`OutputValidation` result, complemented by the new per-attempt outcome envelope;
+see [the assertion contract and limitations](output-contracts.md).
 
 ## Failures And Concurrency
 
