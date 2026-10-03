@@ -39,13 +39,15 @@ def propose_command(ctx: typer.Context, question: str,
                     name: str = typer.Option("reviewed_tool"),
                     model: str = typer.Option(None, help="Override Ollama model for drafting only."),
                     args: str = typer.Option(None, help="Exact JSON arguments; otherwise use the question text."),
+                    output_contract: str = typer.Option(None, help="JSON assertion with kind and expected; supplied by the reviewer, not the model."),
                     timeout: float = typer.Option(10, min=1, max=60)):
     """Ask Ollama for a draft. No Docker call, execution or working-tool registration."""
     with _errors():
         policy = ContainerPolicy(container_image, timeout)
         arguments = json_object(args) if args is not None else None
         store = ReviewStore(ctx.obj)
-        identifier = propose(question, name, policy, store, args=arguments, model=model)
+        contract = json_object(output_contract) if output_contract is not None else None
+        identifier = propose(question, name, policy, store, args=arguments, model=model, output_contract=contract)
         record = store.inspect(identifier)
         _print_json({key: record[key] for key in ("id", "digest", "state")})
 
@@ -94,7 +96,7 @@ def execute_command(ctx: typer.Context, proposal_id: str):
     with _errors():
         result = ReviewStore(ctx.obj).execute(proposal_id)
         _print_json(result)
-        if result["returncode"] != 0:
+        if result["returncode"] != 0 or result.get("output_validation", {}).get("status", "passed") != "passed":
             raise typer.Exit(code=1)
 
 

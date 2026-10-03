@@ -40,6 +40,11 @@ top-level types are checked without coercion. Nested arrays/objects must contain
 finite JSON values but do not yet have nested schemas. Output is bounded text;
 its description is not a runtime-validated output schema.
 
+An optional independently supplied `--output-contract` now adds an exact text or
+JSON-object assertion for these arguments. See [output contracts](output-contracts.md).
+It is bound into a version-2 proposal's approval digest; proposals without it
+retain version 1 and are not silently treated as output-validated.
+
 `review cancel <proposal-id>` permanently cancels a pending or approved proposal.
 It cannot cancel a claimed/running execution. Changed source, arguments or image
 require a new proposal and a new inspection. There is no edit, reset, automatic
@@ -129,6 +134,10 @@ After independently inspecting that record, an operator may call
 `store.execute(proposal_id)`. Approval does not execute anything. The API remains
 experimental; typed outcome categories and a versioned working-tool registry
 belong to the next roadmap stage, not this change.
+
+Output assertions are the first part of that next stage, with a small typed
+`OutputValidation` result. The general outcome API and working registry remain
+pending; see [the assertion contract and limitations](output-contracts.md).
 
 ## Failures And Concurrency
 

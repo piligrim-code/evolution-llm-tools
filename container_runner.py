@@ -1,5 +1,6 @@
 """Opt-in Linux container execution. The local Docker daemon and image are trusted."""
 from dataclasses import dataclass
+import hashlib
 import json
 import math
 import os
@@ -300,5 +301,7 @@ class ContainerExecutor:
             outcome = "memory_limit"
         return {"returncode": item["State"]["ExitCode"] if outcome == "exited" else 124,
                 "stdout": _display_text(output["stdout"]),
+                "stdout_sha256": hashlib.sha256(output["stdout"]).hexdigest(),
+                "stdout_bytes": len(output["stdout"]),
                 "stderr": _display_text(output["stderr"]),
                 "execution": "container", "outcome": outcome}

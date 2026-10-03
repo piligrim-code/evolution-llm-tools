@@ -9,6 +9,7 @@ import uuid
 from . import container_runner as runner
 from .contracts import bounded_text, json_object, tool_spec
 from .execution_policy import normalized_tool_name, reject_linked_path
+from .output_contracts import normalize_output_contract, validate_output
 
 DOCUMENT_LIMIT = 2_000_000
 PROPOSAL_STATES = ("pending", "approved", "claimed", "finished", "cancelled")
@@ -62,7 +63,7 @@ def _policy(policy):
     }
 
 
-def _document(spec, scripts, args, policy):
+def _document(spec, scripts, args, policy, *, output_contract=None):
     spec = tool_spec(spec)
     # All declared arguments are required; no coercion, defaults or extra keys.
     if not isinstance(args, dict) or set(args) != {arg["name"] for arg in spec["args"]}:
@@ -77,9 +78,12 @@ def _document(spec, scripts, args, policy):
         compile(scripts["tool.py"], "<reviewed tool>", "exec")
     except (SyntaxError, ValueError, RecursionError):
         raise ReviewError("invalid_python_syntax") from None
-    return {"version": 1, "spec": spec, "scripts": scripts, "args": args,
-            "policy": _policy(policy),
-            "source_sha256": {name: _digest(source) for name, source in scripts.items()}}
+    document = {"version": 1, "spec": spec, "scripts": scripts, "args": args,
+                "policy": _policy(policy),
+                "source_sha256": {name: _digest(source) for name, source in scripts.items()}}
+    if output_contract is not None:
+        document.update(version=2, output_contract=normalize_output_contract(output_contract))
+    return document
 
 
 class ReviewStore:
@@ -147,15 +151,16 @@ class ReviewStore:
             raise ReviewError("proposal_content_changed")
         try:
             policy = runner.ContainerPolicy(doc["policy"]["image"], doc["policy"]["timeout"])
-            expected = _document(doc["spec"], doc["scripts"], doc["args"], policy)
+            contract = doc["output_contract"] if doc.get("version") == 2 else None
+            expected = _document(doc["spec"], doc["scripts"], doc["args"], policy, output_contract=contract)
         except (KeyError, TypeError):
             raise ReviewError("invalid_review_document") from None
         if _json(expected) != _json(doc):
             raise ReviewError("proposal_policy_or_contract_changed")
         return row, doc, policy
 
-    def create(self, spec, scripts, args, policy):
-        document = _json(_document(spec, scripts, args, policy))
+    def create(self, spec, scripts, args, policy, *, output_contract=None):
+        document = _json(_document(spec, scripts, args, policy, output_contract=output_contract))
         identifier = uuid.uuid4().hex
         with self._transaction() as db:
             db.execute("INSERT INTO proposals(id,document,digest,state) VALUES(?,?,?,'pending')",
@@ -246,11 +251,13 @@ class ReviewStore:
                 raise error from receipt_error
             raise
         # Unexpected errors/interrupts or failed persistence leave state=claimed.
+        if doc["version"] == 2:
+            result = {**result, "output_validation": validate_output(doc["output_contract"], result)}
         self._finish(proposal_id, result)
         return result
 
 
-def propose(question, name, policy, store, *, args=None, model=None):
+def propose(question, name, policy, store, *, args=None, model=None, output_contract=None):
     """Generate a stdlib-only draft, never execute it or register it as working."""
     from .llm import OllamaClient
     from .mcp.brainstorming import brainstorm_tools
@@ -259,6 +266,8 @@ def propose(question, name, policy, store, *, args=None, model=None):
     bounded_text(question, 16000)
     name = normalized_tool_name(name)
     _policy(policy)
+    if output_contract is not None:
+        output_contract = normalize_output_contract(output_contract)
     provider = OllamaClient(model=model)
     spec = brainstorm_tools(question, name, provider, stdlib_only=True)
     if args is None:
@@ -267,4 +276,4 @@ def propose(question, name, policy, store, *, args=None, model=None):
             raise ReviewError("explicit_arguments_required")
         args = {arg["name"]: question for arg in spec["args"]}
     scripts = propose_tool_scripts(spec, provider, stdlib_only=True)
-    return store.create(spec, scripts, args, policy)
+    return store.create(spec, scripts, args, policy, output_contract=output_contract)

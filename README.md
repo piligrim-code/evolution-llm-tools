@@ -27,6 +27,11 @@ passed 252 default tests and 9 actual Linux container tests; the Windows symlink
 case remains skipped. See [the exact-commit report and limits](docs/qualification-2026-10-03.md).
 This is experimental software, not a production release certification.
 
+The next checkpoint adds optional [reviewed output contracts](docs/output-contracts.md):
+exact text or JSON-object expectations tied to the approved proposal. A process
+exit code of zero no longer makes a contract-bearing CLI run successful when
+its output fails the check. Old proposals retain their explicit legacy behavior.
+
 ## Install And Test
 
 Python 3.12+ in a dedicated virtual environment:
