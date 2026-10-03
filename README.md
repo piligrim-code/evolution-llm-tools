@@ -22,7 +22,8 @@ failure handling and trust limits. Existing `run`/`tool-run` commands keep their
 explicit legacy semantics; they are not silently routed through review.
 
 Discovery adds `review list` with state filters/pagination and read-only
-`list`/`inspect` handles. Hosted Ubuntu/Windows qualification with Python 3.12/3.13
+`list`/`inspect` handles. The published baseline's hosted qualification on
+Ubuntu/Windows with Python 3.12/3.13
 passed 455 default tests on each combination, including required symlink coverage.
 Both Ubuntu jobs also passed all 21 actual Linux container tests. See
 [the exact-commit report and limits](docs/hosted-qualification-2026-10-03.md).
@@ -57,6 +58,9 @@ An [offline evaluation corpus](docs/evaluation.md) fixes 20 synthetic tasks:
 receipts and counts missing cases. It does not call models or automatically run
 candidates. Real-model quality and unavailable timing/resource metrics remain
 unqualified rather than being inferred from handwritten fixture results.
+The local evaluation candidate passed 496 default and 37 actual Docker tests
+from source and an installed wheel; see [its qualification report](docs/evaluation-qualification-2026-10-03.md).
+This new candidate has not yet received hosted CI qualification.
 
 ## Install And Test
 
