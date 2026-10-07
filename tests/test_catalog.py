@@ -200,6 +200,38 @@ def test_new_args_require_new_expectation_and_fresh_approval(reviews, catalog):
     assert fresh['state'] == 'pending' and fresh['result'] is None
 
 
+def test_reuse_requires_fresh_approval_and_never_auto_executes(reviews, catalog, monkeypatch):
+    provider = Mock(side_effect=AssertionError('Catalog reuse must not call a model'))
+    monkeypatch.setattr('alita.llm.OllamaClient', provider)
+    original, version = record(reviews)
+    catalog.promote(reviews, original, confirm=True)
+    original_snapshot = reviews.inspect(original)
+    version_snapshot = catalog.inspect('fixture', version)
+    fresh = catalog.prepare('fixture', version, reviews,
+                            args={'text': 'new-input'},
+                            output_contract={'kind': 'stdout-equals', 'expected': 'new-output\n'})
+    saved = reviews.inspect(fresh['id'])
+    assert saved['state'] == 'pending' and saved['result'] is None
+    assert saved['digest'] != version and saved['document']['args'] == {'text': 'new-input'}
+    assert saved['document']['scripts'] == original_snapshot['document']['scripts']
+    assert saved['document']['output_contract'] == {'kind': 'stdout-equals', 'expected': 'new-output\n'}
+    refused = reviews.execute_result(fresh['id'])
+    assert refused.status.value == 'refused'
+    assert refused.reason == 'approval_required_or_consumed'
+    assert refused.approval_consumed is False
+    assert refused.receipt_saved is False
+    assert refused.result is None and refused.cleanup.value == 'not_started'
+    with pytest.raises(ValueError, match='digest_mismatch'):
+        reviews.approve(fresh['id'], version, confirm=True)
+    assert reviews.inspect(original)['state'] == 'finished'
+    assert reviews.inspect(fresh['id'])['state'] == 'pending'
+    reviews.approve(fresh['id'], saved['digest'], confirm=True)
+    assert reviews.inspect(fresh['id'])['state'] == 'approved'
+    assert reviews.inspect(original) == original_snapshot
+    assert catalog.inspect('fixture', version) == version_snapshot
+    provider.assert_not_called()
+
+
 @pytest.mark.parametrize('version', ['latest', 'a' * 8, 'A' * 64, 'sha256:' + 'a' * 64, '', None])
 def test_version_selection_is_explicit(reviews, catalog, version):
     with pytest.raises(CatalogError, match='explicit_full_version'):

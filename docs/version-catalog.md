@@ -110,6 +110,14 @@ to the v2 review document. Retain that returned mapping for a separate usage aud
 The new document binds its own code/arguments/expectation. The catalog records
 version history and original provenance, not the full history of every reuse.
 
+Reuse never inherits execution approval. Changing the argument values or output
+contract changes the proposal digest; attempting to execute before approving
+that digest is refused, and approving the old digest is rejected when it differs.
+Identical documents may share a digest, but each new proposal still needs its own
+explicit approval.
+`prepare` performs no model call or execution. The original finished receipt and
+its consumed approval remain unchanged.
+
 ## Durability And Trust
 
 SQLite transactions with full synchronous writes and a unique name/version key
