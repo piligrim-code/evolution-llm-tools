@@ -22,11 +22,11 @@ failure handling and trust limits. Existing `run`/`tool-run` commands keep their
 explicit legacy semantics; they are not silently routed through review.
 
 Discovery adds `review list` with state filters/pagination and read-only
-`list`/`inspect` handles. The published baseline's hosted qualification on
-Ubuntu/Windows with Python 3.12/3.13
-passed 455 default tests on each combination, including required symlink coverage.
-Both Ubuntu jobs also passed all 21 actual Linux container tests. See
-[the exact-commit report and limits](docs/hosted-qualification-2026-10-03.md).
+`list`/`inspect` handles. Hosted qualification of the current measured-results
+branch on Ubuntu/Windows with Python 3.12/3.13 passed 680 default tests on each
+combination, including required symlink coverage. Both Ubuntu jobs also passed
+all 37 actual Linux container tests. See the
+[exact-commit report and limits](docs/hosted-qualification-2026-10-07.md).
 This is experimental software, not a production release certification.
 
 Optional [reviewed output contracts](docs/output-contracts.md) provide
