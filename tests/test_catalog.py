@@ -38,15 +38,16 @@ def no_execution(monkeypatch):
     executor.assert_not_called()
 
 
-def record(reviews, *, validated=True, output='synthetic\n', script=SCRIPT, spec=SPEC):
-    identifier = reviews.create(spec, script, ARGS, POLICY, output_contract=CONTRACT if validated else None)
+def record(reviews, *, validated=True, output='synthetic\n', script=SCRIPT, spec=SPEC, args=ARGS,
+           contract=CONTRACT):
+    identifier = reviews.create(spec, script, args, POLICY, output_contract=contract if validated else None)
     digest = reviews.inspect(identifier)['digest']
     reviews.approve(identifier, digest, confirm=True)
     raw = output.encode()
     result = {'execution': 'container', 'outcome': 'exited', 'returncode': 0, 'stdout': output, 'stderr': '',
               'stdout_sha256': hashlib.sha256(raw).hexdigest(), 'stdout_bytes': len(raw)}
     if validated:
-        result['output_validation'] = review.validate_output(CONTRACT, result)
+        result['output_validation'] = review.validate_output(contract, result)
     # Synthetic fixture receipt only; actual execution is covered by Docker tests.
     with closing(sqlite3.connect(reviews.path)) as db, db:
         db.execute("UPDATE proposals SET state='finished',result=? WHERE id=?", (json.dumps(result), identifier))
@@ -198,6 +199,34 @@ def test_new_args_require_new_expectation_and_fresh_approval(reviews, catalog):
     fresh = reviews.inspect(new['id'])
     assert fresh['digest'] != version and fresh['document']['args'] == {'text': 'changed'}
     assert fresh['state'] == 'pending' and fresh['result'] is None
+
+
+def test_catalog_reuse_preserves_and_reapplies_nested_input_schema(reviews, catalog):
+    schema = {'type': 'object', 'required': ['values'], 'properties': {
+        'values': {'type': 'array', 'items': {'type': 'integer'}}}}
+    spec = {'name': 'fixture', 'args': [{'name': 'data', 'type': 'object', 'schema': schema}]}
+    original_args = {'data': {'values': [1, 2]}}
+    contract = {'kind': 'json-object-equals', 'expected': {'result': 3}}
+    original, version = record(reviews, spec=spec, args=original_args,
+                               output='{"result": 3}\n', contract=contract)
+    catalog.promote(reviews, original, confirm=True)
+
+    before = reviews.list()['count']
+    with pytest.raises(review.ReviewError, match='argument_schema_mismatch'):
+        catalog.prepare('fixture', version, reviews,
+                        args={'data': {'values': [True]}},
+                        output_contract={'kind': 'json-object-equals', 'expected': {'result': 1}})
+    assert reviews.list()['count'] == before
+
+    prepared = catalog.prepare('fixture', version, reviews,
+                               args={'data': {'values': [-4, 6]}},
+                               output_contract={'kind': 'json-object-equals', 'expected': {'result': 2}})
+    fresh = reviews.inspect(prepared['id'])
+    assert fresh['state'] == 'pending' and fresh['result'] is None
+    assert fresh['document']['spec']['args'][0]['schema'] == {
+        'type': 'object', 'required': ['values'], 'additionalProperties': False,
+        'properties': {'values': {'type': 'array', 'items': {'type': 'integer'}}}}
+    assert fresh['document']['args'] == {'data': {'values': [-4, 6]}}
 
 
 def test_reuse_requires_fresh_approval_and_never_auto_executes(reviews, catalog, monkeypatch):
