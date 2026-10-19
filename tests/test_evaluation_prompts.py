@@ -70,7 +70,7 @@ def test_v2_is_explicit_and_refusal_tasks_stay_decisions(task):
         assert 'sys.argv' not in decision
 
 
-@pytest.mark.parametrize('version', ['v0', 'v3', '', None, True, []])
+@pytest.mark.parametrize('version', ['v0', 'v4', '', None, True, []])
 def test_invalid_versions_are_refused(version):
     with pytest.raises(ValueError, match='prompt_version'):
         evaluation_prompt('integer-sum', version=version)
@@ -86,7 +86,7 @@ def test_invalid_mode_and_task_are_refused():
         evaluation_prompt('not-a-task', version='v2')
 
 
-@pytest.mark.parametrize('old,new', [('v1', 'v2'), ('v2', 'v1')])
+@pytest.mark.parametrize('old,new', [('v1', 'v2'), ('v2', 'v1'), ('v2', 'v3'), ('v3', 'v2')])
 @pytest.mark.parametrize('task,mode', [('integer-sum', 'source'), ('integer-sum', 'decision'),
                                        ('refuse-network', 'source'), ('refuse-network', 'decision')])
 def test_observations_cannot_be_relabelled_as_another_prompt_version(old, new, task, mode):
@@ -118,6 +118,25 @@ def test_v2_rejects_malformed_source_without_echo_or_normalization(text, reason,
     assert result['generation_provenance_verified'] is False
     assert 'text' not in result['generation']
     assert 'print(1)' not in json.dumps(result)
+
+
+def test_v3_adds_strict_integer_sum_input_and_error_contract_without_changing_v2():
+    v2 = evaluation_prompt('integer-sum', version='v2')
+    v3 = evaluation_prompt('integer-sum', version='v3')
+    assert 'Toolwright evaluation prompt v2.' in v2
+    assert 'bool is not an integer' not in v2
+    assert 'Toolwright evaluation prompt v3.' in v3
+    assert 'type(value) is int' in v3 and 'bool is not an integer' in v3
+    assert 'data must contain exactly "values"' in v3
+    assert 'Do not emit a traceback or stdout' in v3
+
+
+def test_v3_generation_record_is_bound_and_still_unreviewed():
+    saved = record('def main():\n    pass\n', version='v3')
+    assert saved['status'] == 'unreviewed_source'
+    assert saved['prompt_version'] == 'v3'
+    assert saved['source_check'] == {'syntax_valid': True, 'reason': None}
+    assert saved['execution_authorized'] is False
 
 
 def test_compilation_never_executes_and_does_not_validate_semantics(tmp_path):

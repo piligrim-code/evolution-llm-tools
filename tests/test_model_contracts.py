@@ -53,6 +53,29 @@ def test_bad_tool_schema_refused(spec):
         tool_spec(spec)
 
 
+@pytest.mark.parametrize("schema", [
+    {"type": "object", "required": ["missing"], "properties": {}},
+    {"type": "object", "properties": {"x": {"type": "integer"}}, "additionalProperties": True},
+    {"type": "array", "items": {"type": "unknown"}},
+    {"type": "array"},
+    {"type": "string", "items": {"type": "integer"}},
+    {"type": "object", "items": {"type": "integer"}},
+    {"type": "object", "properties": {"x": {"type": "object", "properties": {}}}, "surprise": 1},
+])
+def test_nested_argument_schema_is_a_bounded_closed_subset(schema):
+    with pytest.raises(ModelContractError, match="invalid_argument_schema"):
+        tool_spec({"name": "fixture", "args": [{"name": "data", "type": schema["type"], "schema": schema}]})
+
+
+def test_nested_argument_schema_is_preserved_in_normalized_spec():
+    schema = {"type": "object", "required": ["values"],
+              "properties": {"values": {"type": "array", "items": {"type": "integer"}}}}
+    result = tool_spec({"name": "fixture", "args": [{"name": "data", "type": "object", "schema": schema}]})
+    assert result["args"][0]["schema"] == {
+        "type": "object", "required": ["values"], "additionalProperties": False,
+        "properties": {"values": {"type": "array", "items": {"type": "integer"}}}}
+
+
 def test_manager_does_not_silently_map_unsupported_arguments():
     with pytest.raises(ModelContractError, match="unsupported_manager_arguments"):
         manager.normalize_args("values", {"name": "fixture", "args": [{"name": "numbers", "type": "array"}]})
@@ -78,6 +101,14 @@ def test_generation_checks_syntax_without_running_source(tmp_path):
     provider.generate.assert_called_once()
 
 
+def test_generation_prompt_requires_exact_types_and_clean_invalid_input_failures():
+    provider = SimpleNamespace(generate=Mock(return_value="print(2)\nREQUIREMENTS: none"))
+    propose_tool_scripts({"name": "fixture"}, provider, stdlib_only=True)
+    prompt = provider.generate.call_args.args[0]
+    assert "type(value) is int" in prompt and "bool is a subclass of int" in prompt
+    assert "nonzero exit" in prompt and "Do not emit a traceback" in prompt
+
+
 def test_stdlib_profile_rejects_generated_dependencies():
     provider = SimpleNamespace(generate=Mock(return_value="print(2)\nREQUIREMENTS: synthetic-package"))
     with pytest.raises(ModelContractError, match="dependencies_forbidden"):
@@ -89,6 +120,15 @@ def test_brainstorm_requests_json_and_ignores_arbitrary_entrypoint():
     result = brainstorm_tools("Synthetic", "fixture", provider)
     assert provider.generate.call_args.kwargs["json_mode"] is True
     assert result["entrypoint"] == 'python tool.py --json "<JSON>"'
+
+
+def test_reviewed_brainstorm_prompt_declares_strict_nested_json_arguments():
+    provider = SimpleNamespace(generate=Mock(return_value=json.dumps({"name": "fixture"})))
+    brainstorm_tools("sum integer values", "fixture", provider, structured_args=True)
+    prompt = provider.generate.call_args.args[0]
+    assert "typed JSON arguments" in prompt
+    assert "objects are closed and reject extra keys" in prompt
+    assert "never a boolean or float" in prompt
 
 
 def test_cli_reports_provider_failure_without_traceback_or_retry(monkeypatch):

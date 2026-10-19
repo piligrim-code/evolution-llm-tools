@@ -5,8 +5,9 @@ generation observation. It does not call a model, write files, compile/import
 source, prepare a proposal, approve or execute code. It is not invoked by the
 generation client, recorder, legacy generator or CLI.
 
-The frozen v1/v2 prompts and raw observation semantics remain unchanged. In
-particular, a fenced v2 response remains `invalid_source` in its original record.
+The frozen v1/v2 prompts and raw observation semantics remain unchanged. V3 is
+an opt-in prompt revision. A fenced v2/v3 response remains `invalid_source` in
+its original record.
 The transformation produces a separate `unreviewed_source`, not a successful
 evaluation result. The body may still contain invalid syntax or dangerous code.
 
@@ -25,7 +26,7 @@ summary = derived.to_dict()  # No source or original text by default.
 source = derived.source     # Still unreviewed; do not execute it.
 ```
 
-`prompt_version` is mandatory; both v1 and v2 observations are supported. The
+`prompt_version` is mandatory; v1, v2 and v3 observations are supported. The
 operation rechecks task/corpus, exact prompt/response hashes and request settings
 through `record_generation`. Decision/refusal observations cannot become source.
 Caller-supplied record dictionaries are not accepted in place of GenerationResult.

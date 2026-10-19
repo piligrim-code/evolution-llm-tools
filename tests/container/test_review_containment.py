@@ -47,6 +47,46 @@ def test_reviewed_fixture_requires_approval_and_cannot_replay(tmp_path, monkeypa
     assert not remaining.stdout.strip(), "Owned container was not removed"
 
 
+def test_nested_integer_schema_rejects_bad_values_before_execution(tmp_path, monkeypatch):
+    from alita import review
+
+    instances = []
+
+    def executor(policy):
+        instance = ContainerExecutor(policy)
+        instances.append(instance)
+        return instance
+
+    monkeypatch.setattr(review.runner, 'ContainerExecutor', executor)
+    store = ReviewStore(tmp_path / 'reviews.sqlite3')
+    spec = {'name': 'sum_values', 'args': [{'name': 'data', 'type': 'object', 'schema': {
+        'type': 'object', 'required': ['values'],
+        'properties': {'values': {'type': 'array', 'items': {'type': 'integer'}}}}}]}
+    source = "import json, sys\ndata = json.loads(sys.argv[2])['data']\nprint(json.dumps({'result': sum(data['values'])}))\n"
+    policy = ContainerPolicy(os.environ['ALITA_TEST_IMAGE'])
+    for data in ({}, {'values': None}, {'values': [True]}, {'values': [1.5]},
+                 {'values': ['2']}, {'values': [], 'extra': 1}):
+        with pytest.raises(review.ReviewError, match='argument_schema_mismatch'):
+            store.create(spec, {'tool.py': source}, {'data': data}, policy)
+    assert store.list()['count'] == 0
+    assert not instances
+
+    identifier = store.create(spec, {'tool.py': source}, {'data': {'values': [-2, 5]}}, policy,
+                              output_contract={'kind': 'json-object-equals',
+                                               'expected': {'result': 3}})
+    assert not instances
+    digest = store.inspect(identifier)['digest']
+    store.approve(identifier, digest, confirm=True)
+    outcome = store.execute_result(identifier)
+    assert outcome.status.value == 'succeeded'
+    assert outcome.result['stdout'] == '{"result": 3}\n'
+    assert outcome.cleanup.value == 'confirmed'
+    assert len(instances) == 1
+    controller = instances[0]
+    assert not controller._docker('container', 'ls', '--all', '--quiet', '--filter',
+                                  'label=io.alita.executor.owner=' + controller.owner).stdout.strip()
+
+
 @pytest.mark.parametrize('source,contract,status', [
     ("print('synthetic')", {'kind': 'stdout-equals', 'expected': 'synthetic\n'}, 'passed'),
     ("print('wrong')", {'kind': 'stdout-equals', 'expected': 'synthetic\n'}, 'failed'),

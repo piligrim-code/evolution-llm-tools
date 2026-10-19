@@ -9,14 +9,17 @@ GEN_PROMPT = """
 Write a SINGLE Python file named tool.py that implements the tool below.
 
 Rules:
-- Must accept a single CLI flag: --json '<JSON string>'
-- Parse JSON into dict args, do the computation, and print ONLY the final textual answer to stdout.
-- No network calls unless strictly necessary. Prefer stdlib only.
-- Keep it small, robust, and deterministic.
+- Accept argv as: python tool.py --json '<JSON object>'. The flag is sys.argv[1]; the JSON text is sys.argv[2].
+- Parse one JSON object and validate every required argument, nested field, and array item against the Tool Spec before computing.
+- Use exact JSON types: in particular, type(value) is int for integers because bool is a subclass of int in Python. Do not coerce strings, booleans, or floats.
+- Reject missing, extra, or malformed fields with a short fixed message on stderr and a nonzero exit. Do not emit a traceback or partial stdout for invalid input.
+- On valid input, print only the result to stdout; follow the output format in the Tool Spec.
+- No network calls or host-file access. Prefer standard library only.
+- Keep it small, deterministic, and explicit about input validation.
 - If dependencies are required, list them on a separate line starting exactly with: REQUIREMENTS: pkg1==x.y, pkg2
 - If no deps: write 'REQUIREMENTS: none' as the very last line.
 - Do NOT wrap code in ```python or any markdown fences.
-- Return only the code of tool.py and the REQUIREMENTS line.
+- Return only source code and the REQUIREMENTS line.
 
 Tool Spec (JSON):
 {tool_spec}

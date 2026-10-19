@@ -106,7 +106,7 @@ cannot be relabelled v2. Task expectations and corpus identity do not change.
 Records add `prompt_version` and `source_check`. V1 keeps its previous statuses
 and has `source_check=None`; decision records also have no source check.
 
-For v2 source only, recording checks the 128 KiB UTF-8 bound, nonempty text,
+For v2 and v3 source only, recording checks the 128 KiB UTF-8 bound, nonempty text,
 opening Markdown fences, a trailing `REQUIREMENTS:` marker and Python syntax.
 Malformed source is `invalid_source` with a fixed reason, never repaired or
 retried. `source_check.syntax_valid` is null when compilation was not attempted,
@@ -122,6 +122,12 @@ answers or produce invalid output if executed. Even an empty-behavior program
 such as comments alone can pass syntax. Such results stay `unreviewed_source`,
 never approved or correct. Review and separately authorized contained tests remain
 necessary. Current offline fixtures do not establish improved real-model quality.
+
+V2 prompt bytes remain unchanged. The opt-in v3 prompt adds explicit argument
+type/shape validation and a no-traceback error contract; `integer-sum` also
+requires exactly one `values` field containing a list of exact integers, with
+an empty list valid. This is prompt guidance, not semantic enforcement or proof
+that a model follows it. No v3 real-model run has been qualified.
 
 ## Explicit Source Derivation
 

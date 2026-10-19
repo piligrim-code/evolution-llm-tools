@@ -7,7 +7,7 @@ import sqlite3
 import uuid
 
 from . import container_runner as runner
-from .contracts import bounded_text, json_object, tool_spec
+from .contracts import bounded_text, json_object, tool_spec, validate_value_schema
 from .execution_policy import normalized_tool_name, reject_linked_path
 from .output_contracts import normalize_output_contract, validate_output
 from .outcomes import ExecutionOutcome, _Attempt, _completed_outcome, _exception_outcome
@@ -72,8 +72,11 @@ def _document(spec, scripts, args, policy, *, output_contract=None):
     kinds = {"string": (str,), "integer": (int,), "number": (int, float),
              "boolean": (bool,), "object": (dict,), "array": (list,)}
     for arg in spec["args"]:
-        if type(args[arg["name"]]) not in kinds[arg["type"]]:
+        value = args[arg["name"]]
+        if type(value) not in kinds[arg["type"]]:
             raise ReviewError("argument_type_mismatch")
+        if "schema" in arg and not validate_value_schema(value, arg["schema"]):
+            raise ReviewError("argument_schema_mismatch")
     runner.validate_payload(scripts, args)
     try:
         compile(scripts["tool.py"], "<reviewed tool>", "exec")
@@ -381,11 +384,13 @@ def propose(question, name, policy, store, *, args=None, model=None, output_cont
     if output_contract is not None:
         output_contract = normalize_output_contract(output_contract)
     provider = OllamaClient(model=model)
-    spec = brainstorm_tools(question, name, provider, stdlib_only=True)
+    spec = brainstorm_tools(question, name, provider, stdlib_only=True, structured_args=args is not None)
     if args is None:
         if any(arg["name"] not in ("text", "question", "input") or arg["type"] != "string"
                for arg in spec["args"]):
             raise ReviewError("explicit_arguments_required")
         args = {arg["name"]: question for arg in spec["args"]}
+    elif any(arg["type"] in ("object", "array") and "schema" not in arg for arg in spec["args"]):
+        raise ReviewError("nested_input_schema_required")
     scripts = propose_tool_scripts(spec, provider, stdlib_only=True)
     return store.create(spec, scripts, args, policy, output_contract=output_contract)
