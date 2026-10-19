@@ -57,7 +57,7 @@ def record_generation(task_id, result, *, expected_corpus_sha256, mode='source',
             status = score_decision(task_id, json_object(result.text))['status']
         except ValueError:
             status = 'invalid_response'
-    elif prompt_version == 'v2':
+    elif prompt_version in ('v2', 'v3'):
         source_check = _source_check(result.text)
         if source_check['reason'] is not None:
             status = 'invalid_source'

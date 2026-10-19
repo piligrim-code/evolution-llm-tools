@@ -109,6 +109,26 @@ and the fixed execution profile. It is an integrity fingerprint, not a signature
 or proof that the code is safe. A changed profile also invalidates old proposals.
 Maintainers must bump the profile identifier when changing execution semantics.
 
+When `review propose` receives explicit `--args`, its drafting prompt requests
+typed JSON arguments and nested input schemas. New reviewed proposals with
+object/array arguments require a bounded `schema`; array schemas must declare
+`items`. Direct `ReviewStore.create` and existing stored proposals retain their
+previous shallow-type behavior unless a schema is supplied.
+The supported subset uses `type`, object `properties`/`required` with closed
+objects (`additionalProperties: false`), and array `items`. Integer validation
+uses exact JSON/Python types, so booleans and floats are not integers. The schema
+is normalized into the proposal digest and validated before proposal creation
+and again when the proposal is inspected for execution. This validates supplied
+arguments at the review boundary; it does not prove that arbitrary tool code
+validates later inputs when run outside that proposal.
+
+```json
+{"name": "sum_values", "args": [{"name": "data", "type": "object",
+ "schema": {"type": "object", "required": ["values"],
+            "properties": {"values": {"type": "array",
+                          "items": {"type": "integer"}}}}}]}
+```
+
 ## Local API Without A Model
 
 This hand-written fixture only creates a proposal; it does not execute code:

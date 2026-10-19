@@ -115,6 +115,70 @@ def test_argument_contract_has_no_silent_coercion(store, args):
         store.create(SPEC, SCRIPTS, args, ContainerPolicy(IMAGE))
 
 
+INTEGER_LIST_SPEC = {"name": "sum_values", "args": [{"name": "data", "type": "object",
+    "schema": {"type": "object", "required": ["values"], "properties": {
+        "values": {"type": "array", "items": {"type": "integer"}}}}}]}
+
+
+@pytest.mark.parametrize("data", [{}, {"values": None}, {"values": [True]},
+                                   {"values": [1, 2.5]}, {"values": ["3"]},
+                                   {"values": [], "extra": 1}])
+def test_nested_argument_schema_rejects_malformed_values_before_proposal(store, data):
+    with pytest.raises(review.ReviewError, match="argument_schema_mismatch"):
+        store.create(INTEGER_LIST_SPEC, SCRIPTS, {"data": data}, ContainerPolicy(IMAGE))
+    assert store.list()["count"] == 0
+
+
+@pytest.mark.parametrize("data", [{"values": []}, {"values": [-2, 0, 7]}])
+def test_nested_argument_schema_accepts_strict_integer_lists(store, data):
+    identifier = store.create(INTEGER_LIST_SPEC, SCRIPTS, {"data": data}, ContainerPolicy(IMAGE))
+    proposal = store.inspect(identifier)
+    assert proposal["state"] == "pending"
+    assert proposal["document"]["spec"]["args"][0]["schema"] == {
+        "type": "object", "required": ["values"], "additionalProperties": False,
+        "properties": {"values": {"type": "array", "items": {"type": "integer"}}}}
+
+
+def test_nested_argument_schema_is_rechecked_when_loading_proposal(store, executor):
+    identifier = store.create(INTEGER_LIST_SPEC, SCRIPTS, {"data": {"values": [1]}}, ContainerPolicy(IMAGE))
+    modify(store, identifier, lambda doc: doc["args"]["data"]["values"].__setitem__(0, True), rehash=True)
+    with pytest.raises(review.ReviewError, match="argument_schema_mismatch"):
+        store.execute(identifier)
+    executor.assert_not_called()
+
+
+def test_generated_structured_proposal_requires_and_binds_nested_schema(store, monkeypatch):
+    from alita import llm
+
+    spec = {"name": "sum_values", "args": [{"name": "data", "type": "object",
+        "schema": {"type": "object", "required": ["values"], "properties": {
+            "values": {"type": "array", "items": {"type": "integer"}}}}}]}
+    client = Mock()
+    client.generate.side_effect = [json.dumps(spec), "import json, sys\nprint(0)\nREQUIREMENTS: none"]
+    monkeypatch.setattr(llm, "OllamaClient", lambda **kwargs: client)
+    identifier = review.propose("sum values", "sum_values", ContainerPolicy(IMAGE), store,
+                                args={"data": {"values": [1, 2]}})
+    proposal = store.inspect(identifier)
+    assert proposal["state"] == "pending"
+    assert proposal["document"]["spec"]["args"][0]["schema"]["properties"]["values"]["items"] == {
+        "type": "integer"}
+    assert "typed JSON arguments" in client.generate.call_args_list[0].args[0]
+
+
+def test_generated_structured_proposal_refuses_missing_nested_schema(store, monkeypatch):
+    from alita import llm
+
+    client = Mock()
+    client.generate.return_value = json.dumps({"name": "sum_values", "args": [
+        {"name": "data", "type": "object"}]})
+    monkeypatch.setattr(llm, "OllamaClient", lambda **kwargs: client)
+    with pytest.raises(review.ReviewError, match="nested_input_schema_required"):
+        review.propose("sum values", "sum_values", ContainerPolicy(IMAGE), store,
+                       args={"data": {"values": [1, 2]}})
+    assert client.generate.call_count == 1
+    assert store.list()["count"] == 0
+
+
 @pytest.mark.parametrize("kind,value", [("integer", True), ("number", True), ("object", {1: "x"}),
                                       ("array", [float("nan")]), ("array", [(1, 2)])])
 def test_only_strict_json_values(store, kind, value):
@@ -327,11 +391,13 @@ def test_cli_full_fake_provider_flow(store, monkeypatch, executor):
     monkeypatch.setattr(llm, "OllamaClient", factory)
     runner = CliRunner()
     prefix = ["review", "--store", str(store.path)]
-    draft = runner.invoke(cli.app, prefix + ["propose", "synthetic", "--container-image", IMAGE])
+    draft = runner.invoke(cli.app, prefix + ["propose", "synthetic", "--container-image", IMAGE,
+                                             "--args", '{"text":"synthetic"}'])
     assert draft.exit_code == 0, draft.output
     data = json.loads(draft.output)
     factory.assert_called_once_with(model=None)
     assert client.generate.call_count == 2
+    assert "typed JSON arguments" in client.generate.call_args_list[0].args[0]
     executor.assert_not_called()
     record = runner.invoke(cli.app, prefix + ["inspect", data["id"], "--json"])
     assert record.exit_code == 0, record.output

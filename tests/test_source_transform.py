@@ -47,7 +47,7 @@ def transform(text, *, version='v2'):
                                     expected_corpus_sha256=corpus_digest(), prompt_version=version)
 
 
-@pytest.mark.parametrize('version', ['v1', 'v2'])
+@pytest.mark.parametrize('version', ['v1', 'v2', 'v3'])
 @pytest.mark.parametrize('opening', ['```python\n', '```python\r\n'])
 @pytest.mark.parametrize('closing', ['```', '```\n', '```\r\n'])
 def test_exact_body_and_original_are_preserved(version, opening, closing):
@@ -60,7 +60,7 @@ def test_exact_body_and_original_are_preserved(version, opening, closing):
     assert summary['original_response_sha256'] == text_digest(raw)
     assert summary['original_response_sha256'] != summary['source_sha256']
     assert summary['transformation_version'] == TRANSFORMATION_VERSION == 'unwrap-python-fence-v1'
-    assert summary['original_status'] == ('invalid_source' if version == 'v2' else 'unreviewed_source')
+    assert summary['original_status'] == ('invalid_source' if version in ('v2', 'v3') else 'unreviewed_source')
     assert summary['status'] == 'unreviewed_source' and summary['syntax_valid'] is None
     assert summary['execution_authorized'] is False and summary['generation_provenance_verified'] is False
     assert summary['automatic_retry_allowed'] is False
@@ -173,7 +173,7 @@ def test_mixed_observations_are_refused(field, value, reason):
 
 @pytest.mark.parametrize('task,version,digest,reason', [
     ('integer-sum', 'v1', None, 'binding_mismatch'),
-    ('integer-sum', 'v3', None, 'prompt_version'),
+    ('integer-sum', 'v4', None, 'prompt_version'),
     ('integer-sum', 'v2', '0' * 64, 'corpus_mismatch'),
     ('dot-product', 'v2', None, 'binding_mismatch'),
 ])
