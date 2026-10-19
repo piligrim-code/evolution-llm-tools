@@ -76,6 +76,30 @@ def test_nested_argument_schema_is_preserved_in_normalized_spec():
         "properties": {"values": {"type": "array", "items": {"type": "integer"}}}}
 
 
+def test_nested_argument_schema_depth_limit_is_inclusive():
+    schema = {"type": "integer"}
+    for _ in range(8):
+        schema = {"type": "array", "items": schema}
+    tool_spec({"name": "fixture", "args": [{"name": "data", "type": "array", "schema": schema}]})
+    schema = {"type": "array", "items": schema}
+    with pytest.raises(ModelContractError, match="invalid_argument_schema"):
+        tool_spec({"name": "fixture", "args": [{"name": "data", "type": "array", "schema": schema}]})
+
+
+def test_nested_argument_schema_property_and_node_budgets_are_enforced():
+    too_wide = {"type": "object", "properties": {
+        f"field_{index}": {"type": "string"} for index in range(65)}}
+    with pytest.raises(ModelContractError, match="invalid_argument_schema"):
+        tool_spec({"name": "fixture", "args": [{"name": "data", "type": "object", "schema": too_wide}]})
+
+    many_nodes = {"type": "object", "properties": {
+        f"group_{index}": {"type": "object", "properties": {
+            "left": {"type": "string"}, "right": {"type": "integer"}}}
+        for index in range(64)}}
+    with pytest.raises(ModelContractError, match="invalid_argument_schema"):
+        tool_spec({"name": "fixture", "args": [{"name": "data", "type": "object", "schema": many_nodes}]})
+
+
 def test_manager_does_not_silently_map_unsupported_arguments():
     with pytest.raises(ModelContractError, match="unsupported_manager_arguments"):
         manager.normalize_args("values", {"name": "fixture", "args": [{"name": "numbers", "type": "array"}]})
