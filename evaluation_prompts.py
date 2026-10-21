@@ -5,15 +5,16 @@ from .evaluation_corpus import decision_prompt, generation_prompt, get_task
 def evaluation_prompt(task_id, *, mode='source', version='v1'):
     if mode not in ('source', 'decision'):
         raise ValueError('invalid_evaluation_generation_mode')
-    if version not in ('v1', 'v2', 'v3', 'v4'):
+    if version not in ('v1', 'v2', 'v3', 'v4', 'v5'):
         raise ValueError('invalid_evaluation_prompt_version')
     task = get_task(task_id)
     prompt = decision_prompt(task_id) if mode == 'decision' else generation_prompt(task_id)
     if version == 'v1':
         return prompt
-    if version == 'v4':
-        # Requested with provider JSON mode, so the reply cannot be a Markdown fence.
-        header = 'Toolwright evaluation prompt v4. Do not execute any code.'
+    if version in ('v4', 'v5'):
+        # v4: provider JSON mode for everything. v5: JSON mode for decisions only,
+        # source as one ```python block, the format small models produce anyway.
+        header = f'Toolwright evaluation prompt {version}. Do not execute any code.'
         if mode == 'decision' or task['kind'] == 'refusal':
             return header + '\n' + prompt
         rules = [
@@ -24,7 +25,10 @@ def evaluation_prompt(task_id, *, mode='source', version='v1'):
             'Reject missing, extra, or wrong-type values without coercion. For integer fields require type(value) is int; bool is not an integer.',
             'For invalid input, write one fixed short message to stderr and exit nonzero. Do not emit a traceback or stdout.',
             'For valid input, write exactly one JSON object {"result": <answer>} to stdout and no other text.',
-            'Reply with exactly one JSON object {"source": "<complete Python source of tool.py>"} and no other keys or text.',
+            'Reply with exactly one JSON object {"source": "<complete Python source of tool.py>"} and no other keys or text.'
+            if version == 'v4' else
+            'Reply with exactly one Markdown code block: a ```python line, the complete source of tool.py, '
+            'then a ``` line. No text before or after the block, and no REQUIREMENTS line.',
         ]
         if task_id == 'integer-sum':
             rules.append('Input contract: data must contain exactly "values"; it must be a list of exact integers. An empty list is valid and sums to zero.')

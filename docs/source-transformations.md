@@ -16,6 +16,14 @@ checks it (`invalid_source_envelope` for any other shape, then the usual source
 checks) and `generated_source()` returns the checked, still unreviewed source.
 A v4 observation without JSON mode is refused, and the fence transformation
 refuses v4 observations.
+
+V5 follows the v4 qualification (see `prompt-v4-qualification-2026-10-21.md`).
+Decisions are requested with JSON mode; tool source is requested without it,
+as exactly one ```` ```python ```` block. That block is the declared reply
+format, parsed by the same narrow envelope rules as `unwrap-python-fence-v1`:
+anything else (raw source, prose around the block, another language tag, two
+blocks) is `invalid_source` with the envelope reason. JSON mode must match the
+response kind, and the fence transformation refuses v5 observations.
 The transformation produces a separate `unreviewed_source`, not a successful
 evaluation result. The body may still contain invalid syntax or dangerous code.
 

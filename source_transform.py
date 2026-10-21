@@ -1,8 +1,7 @@
 """Explicit source derivation, never normalization in place or execution approval."""
 from dataclasses import dataclass, field
 
-from .contracts import ModelContractError, bounded_text
-from .evaluation_generation import record_generation
+from .evaluation_generation import _python_fence_body as _unwrap_python_fence, record_generation
 from .generation_results import GenerationResult, text_digest
 
 TRANSFORMATION_VERSION = 'unwrap-python-fence-v1'
@@ -42,32 +41,13 @@ class SourceTransformation:
         return result
 
 
-def _unwrap_python_fence(text):
-    bounded_text(text, 128 * 1024)
-    opening, newline, remaining = text.partition('\n')
-    if not newline or opening not in ('```python', '```python\r'):
-        raise ModelContractError('expected_single_python_fence')
-    closing = next((suffix for suffix in ('```', '```\n', '```\r\n') if remaining.endswith(suffix)), None)
-    if closing is None:
-        raise ModelContractError('expected_single_python_fence')
-    source = remaining[:-len(closing)]
-    if not source.endswith('\n'):
-        raise ModelContractError('expected_single_python_fence')
-    # This is a deliberately narrow envelope, not a general Markdown parser.
-    # Reject ambiguous fence-like lines even inside a Python multiline literal.
-    if any(line.lstrip().startswith(('```', '~~~')) for line in source.split('\n')):
-        raise ModelContractError('ambiguous_python_fence')
-    bounded_text(source, 128 * 1024)
-    return source
-
-
 def unwrap_generation_source(task_id, result, *, expected_corpus_sha256, prompt_version):
     """Derive one block's exact body; no compile, I/O, provider call or proposal."""
     if not isinstance(result, GenerationResult):
         raise ValueError('generation_result_required')
-    if prompt_version == 'v4':
-        # v4 replies are provider-constrained JSON envelopes; a fence there is a failure.
-        raise ValueError('fence_transformation_not_applicable_to_v4')
+    if prompt_version in ('v4', 'v5'):
+        # v4 replies are JSON envelopes and v5 already declares the fence as its format.
+        raise ValueError(f'fence_transformation_not_applicable_to_{prompt_version}')
     # Validate the envelope first so raw-source checks never compile fenced text.
     source = _unwrap_python_fence(result.text)
     original = record_generation(task_id, result, expected_corpus_sha256=expected_corpus_sha256,
