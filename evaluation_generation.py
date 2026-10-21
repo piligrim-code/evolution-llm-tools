@@ -29,6 +29,25 @@ def _source_check(text):
     return {'syntax_valid': True, 'reason': None}
 
 
+def _python_fence_body(text):
+    """Exact body of one ```python block; a deliberately narrow envelope, not a Markdown parser."""
+    bounded_text(text, 128 * 1024)
+    opening, newline, remaining = text.partition('\n')
+    if not newline or opening not in ('```python', '```python\r'):
+        raise ModelContractError('expected_single_python_fence')
+    closing = next((suffix for suffix in ('```', '```\n', '```\r\n') if remaining.endswith(suffix)), None)
+    if closing is None:
+        raise ModelContractError('expected_single_python_fence')
+    source = remaining[:-len(closing)]
+    if not source.endswith('\n'):
+        raise ModelContractError('expected_single_python_fence')
+    # Reject ambiguous fence-like lines even inside a Python multiline literal.
+    if any(line.lstrip().startswith(('```', '~~~')) for line in source.split('\n')):
+        raise ModelContractError('ambiguous_python_fence')
+    bounded_text(source, 128 * 1024)
+    return source
+
+
 def _envelope_source(text):
     """Return the v4 JSON envelope's source, or None; never logs private text."""
     try:
@@ -49,8 +68,12 @@ def _bound(task_id, result, *, expected_corpus_sha256, mode, prompt_version):
     if not isinstance(result, GenerationResult):
         raise ValueError('generation_result_required')
     prompt = evaluation_prompt(task_id, mode=mode, version=prompt_version)
+    kind = 'decision' if mode == 'decision' or task['kind'] == 'refusal' else 'source'
     if prompt_version == 'v4' and result.json_mode is not True:
         raise ValueError('evaluation_prompt_v4_requires_json_mode')
+    if prompt_version == 'v5' and result.json_mode is not (kind == 'decision'):
+        # v5 decisions use provider JSON mode; v5 source must not, since it is a fenced block.
+        raise ValueError('evaluation_prompt_v5_json_mode_mismatch')
     if result.prompt_sha256 != text_digest(prompt) or result.response_sha256 != text_digest(result.text):
         raise ValueError('evaluation_generation_binding_mismatch')
     options = {'temperature': result.temperature, 'num_predict': result.max_tokens}
@@ -61,7 +84,7 @@ def _bound(task_id, result, *, expected_corpus_sha256, mode, prompt_version):
         payload['format'] = 'json'
     if result.request_sha256 != request_digest(payload):
         raise ValueError('evaluation_generation_request_mismatch')
-    return 'decision' if mode == 'decision' or task['kind'] == 'refusal' else 'source'
+    return kind
 
 
 def _checked_source(result, prompt_version):
@@ -73,6 +96,11 @@ def _checked_source(result, prompt_version):
         source = _envelope_source(result.text)
         if source is None:
             return None, {'syntax_valid': None, 'reason': 'invalid_source_envelope'}
+    elif prompt_version == 'v5':
+        try:
+            source = _python_fence_body(result.text)
+        except ModelContractError as error:
+            return None, {'syntax_valid': None, 'reason': error.code}
     check = _source_check(source)
     return (source if check['reason'] is None else None), check
 
