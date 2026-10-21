@@ -8,6 +8,14 @@ generation client, recorder, legacy generator or CLI.
 The frozen v1/v2 prompts and raw observation semantics remain unchanged. V3 is
 an opt-in prompt revision. A fenced v2/v3 response remains `invalid_source` in
 its original record.
+
+V4 is requested with provider JSON mode (`json_mode=True`, Ollama
+`format: "json"`) and asks for exactly `{"source": "<tool.py>"}`. The envelope
+is the requested reply format, not a transformation: `record_generation()`
+checks it (`invalid_source_envelope` for any other shape, then the usual source
+checks) and `generated_source()` returns the checked, still unreviewed source.
+A v4 observation without JSON mode is refused, and the fence transformation
+refuses v4 observations.
 The transformation produces a separate `unreviewed_source`, not a successful
 evaluation result. The body may still contain invalid syntax or dangerous code.
 

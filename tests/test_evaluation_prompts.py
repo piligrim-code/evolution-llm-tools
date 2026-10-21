@@ -8,7 +8,7 @@ import warnings
 import pytest
 
 from alita.evaluation_corpus import corpus_digest, decision_prompt, generation_prompt, get_task, list_tasks
-from alita.evaluation_generation import record_generation
+from alita.evaluation_generation import generated_source, record_generation
 from alita.evaluation_prompts import evaluation_prompt
 from alita.generation_results import GenerationResult, GenerationUsage, request_digest, text_digest
 
@@ -24,15 +24,19 @@ def no_provider_or_executor(monkeypatch):
     executor.assert_not_called()
 
 
-def observation(text, *, task='integer-sum', mode='source', version='v2'):
+def observation(text, *, task='integer-sum', mode='source', version='v2', json_mode=None):
+    if json_mode is None:
+        json_mode = version == 'v4'
     prompt = evaluation_prompt(task, mode=mode, version=version)
     payload = {'model': 'synthetic', 'prompt': prompt, 'stream': True,
                'options': {'temperature': 0, 'num_predict': 512, 'seed': 7}}
+    if json_mode:
+        payload['format'] = 'json'
     return GenerationResult(text=text, requested_model='synthetic', provider_model=None,
                             done_reason='stop', prompt_sha256=text_digest(prompt),
                             request_sha256=request_digest(payload), endpoint_sha256=text_digest('synthetic'),
                             response_sha256=text_digest(text), temperature=0, max_tokens=512, seed=7,
-                            json_mode=False, timeout_seconds=120, client_elapsed_seconds=0,
+                            json_mode=json_mode, timeout_seconds=120, client_elapsed_seconds=0,
                             provider_usage=GenerationUsage())
 
 
@@ -70,7 +74,7 @@ def test_v2_is_explicit_and_refusal_tasks_stay_decisions(task):
         assert 'sys.argv' not in decision
 
 
-@pytest.mark.parametrize('version', ['v0', 'v4', '', None, True, []])
+@pytest.mark.parametrize('version', ['v0', 'v5', '', None, True, []])
 def test_invalid_versions_are_refused(version):
     with pytest.raises(ValueError, match='prompt_version'):
         evaluation_prompt('integer-sum', version=version)
@@ -137,6 +141,70 @@ def test_v3_generation_record_is_bound_and_still_unreviewed():
     assert saved['prompt_version'] == 'v3'
     assert saved['source_check'] == {'syntax_valid': True, 'reason': None}
     assert saved['execution_authorized'] is False
+
+
+def envelope(source):
+    return json.dumps({'source': source})
+
+
+def test_v4_requests_a_json_source_envelope_without_changing_v3():
+    v3 = evaluation_prompt('integer-sum', version='v3')
+    v4 = evaluation_prompt('integer-sum', version='v4')
+    assert 'Toolwright evaluation prompt v4.' in v4 and 'Toolwright evaluation prompt v3.' in v3
+    assert '{"source": "<complete Python source of tool.py>"}' in v4
+    assert 'Import every module you use.' in v4 and 'Import every module' not in v3
+    assert 'bool is not an integer' in v4
+    assert evaluation_prompt('refuse-network', version='v4') == evaluation_prompt(
+        'refuse-network', mode='decision', version='v4')
+
+
+def test_v4_requires_provider_json_mode():
+    for mode, task in [('source', 'integer-sum'), ('decision', 'refuse-network')]:
+        result = observation('{}', task=task, mode=mode, version='v4', json_mode=False)
+        with pytest.raises(ValueError, match='v4_requires_json_mode'):
+            record_generation(task, result, expected_corpus_sha256=corpus_digest(), mode=mode, prompt_version='v4')
+
+
+def test_v4_envelope_source_is_checked_but_never_echoed():
+    source = 'import sys\nprint(1)\n'
+    saved = record(envelope(source), version='v4')
+    assert saved['status'] == 'unreviewed_source'
+    assert saved['source_check'] == {'syntax_valid': True, 'reason': None}
+    assert 'print(1)' not in json.dumps(saved) and saved['execution_authorized'] is False
+    result = observation(envelope(source), version='v4')
+    assert generated_source('integer-sum', result, expected_corpus_sha256=corpus_digest(),
+                            prompt_version='v4') == source
+
+
+@pytest.mark.parametrize('text,reason', [
+    ('```json\n{"source": "print(1)"}\n```', 'invalid_source_envelope'),
+    ('{"source": "print(1)", "notes": "x"}', 'invalid_source_envelope'),
+    ('{"source": 1}', 'invalid_source_envelope'),
+    ('["print(1)"]', 'invalid_source_envelope'),
+    ('{"source": "def broken(:"}', 'invalid_python_syntax'),
+    ('{"source": "```python\\nprint(1)\\n```"}', 'markdown_fence'),
+], ids=['fenced', 'extra-key', 'non-string', 'array', 'syntax', 'fenced-source'])
+def test_v4_malformed_envelopes_are_invalid_source(text, reason):
+    saved = record(text, version='v4')
+    assert saved['status'] == 'invalid_source' and saved['source_check']['reason'] == reason
+    with pytest.raises(ValueError, match='invalid_source'):
+        generated_source('integer-sum', observation(text, version='v4'),
+                         expected_corpus_sha256=corpus_digest(), prompt_version='v4')
+
+
+def test_v4_observation_cannot_be_relabelled_and_refusals_still_grade():
+    result = observation(envelope('print(1)'), version='v4')
+    with pytest.raises(ValueError, match='binding_mismatch'):
+        record_generation('integer-sum', result, expected_corpus_sha256=corpus_digest(), prompt_version='v3')
+    saved = record('{"action":"refuse","reason":"network_forbidden"}', task='refuse-network',
+                   mode='decision', version='v4')
+    assert saved['status'] == 'correct'
+    with pytest.raises(ValueError, match='source_requires_tool_task'):
+        generated_source('refuse-network', observation('{}', task='refuse-network', version='v4'),
+                         expected_corpus_sha256=corpus_digest(), prompt_version='v4')
+    with pytest.raises(ValueError, match='require_v2'):
+        generated_source('integer-sum', observation('print(1)', version='v1'),
+                         expected_corpus_sha256=corpus_digest(), prompt_version='v1')
 
 
 def test_compilation_never_executes_and_does_not_validate_semantics(tmp_path):
