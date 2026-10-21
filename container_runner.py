@@ -1,5 +1,6 @@
 """Opt-in Linux container execution. The local Docker daemon and image are trusted."""
 from dataclasses import dataclass
+import hashlib
 import json
 import math
 import os
@@ -97,6 +98,7 @@ class ContainerExecutor:
         self.name = "alita-box-" + self.owner
         self.container_id = None
         self._attempted = False
+        self._cleanup_confirmed = False
 
     def _docker(self, *args, check=True, timeout=15):
         command = ["docker"]
@@ -220,6 +222,7 @@ class ContainerExecutor:
         finally:
             try:
                 self._remove()
+                self._cleanup_confirmed = True
             except Exception:
                 raise ContainerError("cleanup_unconfirmed", self.name) from None
 
@@ -300,5 +303,7 @@ class ContainerExecutor:
             outcome = "memory_limit"
         return {"returncode": item["State"]["ExitCode"] if outcome == "exited" else 124,
                 "stdout": _display_text(output["stdout"]),
+                "stdout_sha256": hashlib.sha256(output["stdout"]).hexdigest(),
+                "stdout_bytes": len(output["stdout"]),
                 "stderr": _display_text(output["stderr"]),
                 "execution": "container", "outcome": outcome}
