@@ -9,6 +9,9 @@ from .evaluation import prepare_case, score_answer, score_decision, score_run
 from .evaluation_corpus import CORPUS_VERSION, corpus_digest, decision_prompt, generation_prompt, get_case, get_task, list_tasks
 from .review import ReviewStore, _digest
 from .review_cli import _errors, _print_json
+from .robustness_corpus import (ROBUSTNESS_VERSION, get_robustness_case,
+                                list_robustness_cases, robustness_digest)
+from .robustness_evaluation import prepare_robustness_case, score_robustness_run
 
 app = typer.Typer(no_args_is_help=True, help='Fixed synthetic tasks and offline grading; review remains mandatory.')
 
@@ -62,6 +65,40 @@ def score_command(manifest: str, store: str = typer.Option('.mcp/reviews.sqlite3
             raise ValueError('invalid_evaluation_manifest')
         result = score_run(ReviewStore(store, read_only=True), data['assignments'],
                            expected_corpus_sha256=data['corpus_sha256'])
+        if not details:
+            result.pop('cases')
+        _print_json(result)
+
+
+@app.command('robustness-cases')
+def robustness_cases_command():
+    """List fixed robustness probe IDs without inputs or expected outputs."""
+    _print_json({'version': ROBUSTNESS_VERSION, 'sha256': robustness_digest(),
+                 'task_id': 'integer-sum', 'cases': list_robustness_cases()})
+
+
+@app.command('robustness-prepare')
+def robustness_prepare_command(case_id: str, scripts: str = typer.Option(..., help='Local JSON scripts object.'),
+                               container_image: str = typer.Option(...),
+                               store: str = typer.Option('.mcp/reviews.sqlite3')):
+    """Prepare one pending robustness probe. Never approve or execute."""
+    with _errors():
+        get_robustness_case(case_id)
+        candidate = _read(scripts)
+        policy = ContainerPolicy(container_image)
+        _print_json(prepare_robustness_case(case_id, candidate, policy, ReviewStore(store)))
+
+
+@app.command('robustness-score')
+def robustness_score_command(manifest: str, store: str = typer.Option('.mcp/reviews.sqlite3'),
+                             details: bool = typer.Option(False, '--details')):
+    """Grade already executed, approved receipts; never runs candidates."""
+    with _errors():
+        data = _read(manifest)
+        if set(data) != {'robustness_sha256', 'assignments'}:
+            raise ValueError('invalid_robustness_manifest')
+        result = score_robustness_run(ReviewStore(store, read_only=True), data['assignments'],
+                                      expected_robustness_sha256=data['robustness_sha256'])
         if not details:
             result.pop('cases')
         _print_json(result)
