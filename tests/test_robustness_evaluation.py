@@ -84,6 +84,18 @@ def test_receipt_bound_score_requires_explicit_approval_and_clean_fixed_rejectio
     assert report['content_included'] is False
 
 
+def test_single_trailing_line_terminator_is_a_clean_rejection(tmp_path, monkeypatch):
+    reviews = ReviewStore(tmp_path / 'reviews.sqlite3')
+    assignments = _prepare_all(reviews)
+    invalid = [s['id'] for s in list_robustness_cases() if s['class'] == 'invalid']
+    terminators = ['\n', '\r\n', '']
+    messages = {case_id: 'Invalid input' + terminators[index % 3] for index, case_id in enumerate(invalid)}
+    _approve_and_execute_all(reviews, monkeypatch, assignments, stderr_by_case=messages)
+    report = score_robustness_run(reviews, assignments, expected_robustness_sha256=robustness_digest())
+    assert report['robustness_passed'] is True
+    assert report['status_counts'] == {'correct': 4, 'clean_rejection': 7}
+
+
 def test_different_invalid_error_messages_do_not_pass(tmp_path, monkeypatch):
     reviews = ReviewStore(tmp_path / 'reviews.sqlite3')
     assignments = _prepare_all(reviews)
@@ -98,10 +110,11 @@ def test_different_invalid_error_messages_do_not_pass(tmp_path, monkeypatch):
 
 
 def test_traceback_nonzero_exit_and_zero_exit_are_not_clean_rejections(tmp_path, monkeypatch):
-    for stderr, exit_code, expected_status in [
+    for index, (stderr, exit_code, expected_status) in enumerate([
             ('Traceback (most recent call last):\n  File "tool.py"', 1, 'unclean_rejection'),
-            ('Invalid input', 0, 'invalid_input_accepted')]:
-        reviews = ReviewStore(tmp_path / f'{expected_status}.sqlite3')
+            ('Invalid\ninput\n', 1, 'unclean_rejection'),
+            ('Invalid input', 0, 'invalid_input_accepted')]):
+        reviews = ReviewStore(tmp_path / f'{index}.sqlite3')
         assignments = _prepare_all(reviews)
         for assignment in assignments:
             case = get_robustness_case(assignment['case_id'])

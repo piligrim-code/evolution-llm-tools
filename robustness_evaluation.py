@@ -96,15 +96,19 @@ def _score_case(db, reviews, case, identifier):
     if (type(stdout) is not str or stdout != '' or type(stdout_bytes) is not int or stdout_bytes != 0
             or stdout_digest != hashlib.sha256(b'').hexdigest()):
         return {**base, 'status': 'unclean_rejection'}, None
+    # print(..., file=sys.stderr) ends with one line terminator; allow exactly that.
+    line = stderr
+    if type(line) is str:
+        line = line[:-2] if line.endswith('\r\n') else line[:-1] if line.endswith('\n') else line
     try:
-        stderr_size = len(stderr.encode('utf-8')) if type(stderr) is str else 0
+        stderr_size = len(line.encode('utf-8')) if type(line) is str else 0
     except UnicodeError:
         stderr_size = 257
-    if (type(stderr) is not str or not stderr.strip() or stderr_size > 256
-            or '\n' in stderr or '\r' in stderr
-            or 'traceback' in stderr.casefold() or 'file "' in stderr.casefold()):
+    if (type(line) is not str or not line.strip() or stderr_size > 256
+            or '\n' in line or '\r' in line
+            or 'traceback' in line.casefold() or 'file "' in line.casefold()):
         return {**base, 'status': 'unclean_rejection'}, None
-    return {**base, 'status': 'clean_rejection'}, stderr
+    return {**base, 'status': 'clean_rejection'}, line
 
 
 def score_robustness_run(reviews, assignments, *, expected_robustness_sha256):
