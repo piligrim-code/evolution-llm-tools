@@ -217,6 +217,7 @@ def test_v5_declares_a_fenced_source_and_keeps_v4_rules():
     v5 = evaluation_prompt('integer-sum', version='v5')
     assert 'Toolwright evaluation prompt v5.' in v5
     assert 'exactly one Markdown code block: a ```python line' in v5 and '{"source"' not in v5
+    assert 'with no Markdown' in v5 and 'This replaces the earlier "no Markdown" instruction.' in v5
     assert v4.split('\n')[1:-2] == v5.split('\n')[1:-2]
     assert evaluation_prompt('refuse-network', version='v5').endswith(decision_prompt('refuse-network'))
 

@@ -28,7 +28,8 @@ def evaluation_prompt(task_id, *, mode='source', version='v1'):
             'Reply with exactly one JSON object {"source": "<complete Python source of tool.py>"} and no other keys or text.'
             if version == 'v4' else
             'Reply with exactly one Markdown code block: a ```python line, the complete source of tool.py, '
-            'then a ``` line. No text before or after the block, and no REQUIREMENTS line.',
+            'then a ``` line. This replaces the earlier "no Markdown" instruction. '
+            'No text before or after the block, and no REQUIREMENTS line.',
         ]
         if task_id == 'integer-sum':
             rules.append('Input contract: data must contain exactly "values"; it must be a list of exact integers. An empty list is valid and sums to zero.')
