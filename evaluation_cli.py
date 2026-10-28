@@ -12,6 +12,9 @@ from .review_cli import _errors, _print_json
 from .robustness_corpus import (ROBUSTNESS_VERSION, get_robustness_case,
                                 list_robustness_cases, robustness_digest)
 from .robustness_evaluation import prepare_robustness_case, score_robustness_run
+from .admission import AdmissionLedger, prepare_admission_case
+from .catalog import VersionCatalog
+from . import evaluation_corpus_v2
 
 app = typer.Typer(no_args_is_help=True, help='Fixed synthetic tasks and offline grading; review remains mandatory.')
 
@@ -102,6 +105,59 @@ def robustness_score_command(manifest: str, store: str = typer.Option('.mcp/revi
         if not details:
             result.pop('cases')
         _print_json(result)
+
+
+@app.command('admission-cases')
+def admission_cases_command(task_id: str):
+    """List corpus-v2 case IDs and splits for one task, never inputs or answers."""
+    with _errors():
+        _print_json({'version': evaluation_corpus_v2.CORPUS_VERSION, 'sha256': evaluation_corpus_v2.corpus_digest(),
+                     'task_id': task_id, 'cases': evaluation_corpus_v2.list_cases(task_id)})
+
+
+@app.command('admission-prepare')
+def admission_prepare_command(task_id: str, case_id: str,
+                              scripts: str = typer.Option(..., help='Local JSON scripts object.'),
+                              container_image: str = typer.Option(...),
+                              store: str = typer.Option('.mcp/reviews.sqlite3')):
+    """Prepare one pending corpus-v2 case. Never approve or execute."""
+    with _errors():
+        candidate = _read(scripts)
+        _print_json(prepare_admission_case(task_id, case_id, candidate, ContainerPolicy(container_image),
+                                           ReviewStore(store)))
+
+
+@app.command('admission-evaluate')
+def admission_evaluate_command(manifest: str, store: str = typer.Option('.mcp/reviews.sqlite3'),
+                               ledger: str = typer.Option('.mcp/admissions.sqlite3')):
+    """Score finished receipts for every case of one task and record the attempt.
+
+    Recording uses the task's held-out budget once per distinct candidate.
+    """
+    with _errors():
+        data = _read(manifest)
+        if set(data) != {'corpus_sha256', 'task_id', 'assignments'}:
+            raise ValueError('invalid_admission_manifest')
+        _print_json(AdmissionLedger(ledger).evaluate(ReviewStore(store, read_only=True), data['task_id'],
+                                                     data['assignments'],
+                                                     expected_corpus_sha256=data['corpus_sha256']))
+
+
+@app.command('admission-budget')
+def admission_budget_command(task_id: str, ledger: str = typer.Option('.mcp/admissions.sqlite3')):
+    with _errors():
+        _print_json(AdmissionLedger(ledger).budget(task_id))
+
+
+@app.command('admission-promote')
+def admission_promote_command(attempt: int, store: str = typer.Option('.mcp/reviews.sqlite3'),
+                              ledger: str = typer.Option('.mcp/admissions.sqlite3'),
+                              catalog: str = typer.Option('.mcp/versions.sqlite3'),
+                              yes: bool = typer.Option(False, '--yes', help='Explicitly confirm promotion.')):
+    """Promote an admitted candidate into the version catalog via its example receipt."""
+    with _errors():
+        _print_json(AdmissionLedger(ledger).promote(VersionCatalog(catalog), ReviewStore(store, read_only=True),
+                                                    attempt, confirm=yes))
 
 
 @app.command('answer')
