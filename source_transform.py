@@ -45,8 +45,8 @@ def unwrap_generation_source(task_id, result, *, expected_corpus_sha256, prompt_
     """Derive one block's exact body; no compile, I/O, provider call or proposal."""
     if not isinstance(result, GenerationResult):
         raise ValueError('generation_result_required')
-    if prompt_version in ('v4', 'v5'):
-        # v4 replies are JSON envelopes and v5 already declares the fence as its format.
+    if prompt_version in ('v4', 'v5', 'v6'):
+        # v4 replies are JSON envelopes and v5/v6 already declare the fence as their format.
         raise ValueError(f'fence_transformation_not_applicable_to_{prompt_version}')
     # Validate the envelope first so raw-source checks never compile fenced text.
     source = _unwrap_python_fence(result.text)

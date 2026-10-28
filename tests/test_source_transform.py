@@ -173,7 +173,8 @@ def test_mixed_observations_are_refused(field, value, reason):
 
 @pytest.mark.parametrize('task,version,digest,reason', [
     ('integer-sum', 'v1', None, 'binding_mismatch'),
-    ('integer-sum', 'v6', None, 'prompt_version'),
+    ('integer-sum', 'v7', None, 'prompt_version'),
+    ('integer-sum', 'v6', None, 'not_applicable'),
     ('integer-sum', 'v5', None, 'not_applicable'),
     ('integer-sum', 'v4', None, 'not_applicable'),
     ('integer-sum', 'v2', '0' * 64, 'corpus_mismatch'),
