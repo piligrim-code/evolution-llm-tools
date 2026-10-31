@@ -1,6 +1,6 @@
 # Validated Version Catalog
 
-See [source/wheel/Docker qualification](catalog-qualification-2026-10-03.md) for
+See [source/wheel/Docker qualification](qualification/catalog-qualification-2026-10-03.md) for
 the exact tested commit, results and remaining gaps.
 
 The catalog preserves explicitly selected, output-validated proposals as immutable

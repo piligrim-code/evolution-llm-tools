@@ -1,7 +1,7 @@
 # CI Gate Local Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `4e52dc47e386b70b4410deaa7f082505e29d0a1a`.
+Tested implementation: `8a29f5de670aae77bdec1e0fa033e01315ced2fb`.
 The follow-up adds this evidence, README updates and restores an explicit installed
 module CLI help step in the workflow. Package/runtime and qualification-script
 code are unchanged. No remote push, hosted run, merge or release was performed.
@@ -32,7 +32,7 @@ No unexpected pytest failures occurred. Timings are observations, not benchmarks
 
 ## Verified Evidence
 
-The new [qualification script](ci-qualification.md) completed with `status=passed`,
+The new [qualification script](../ci-qualification.md) completed with `status=passed`,
 `repository.clean=true`, the exact commit above and `symlinks_required=false` on
 this local Windows environment. It verified installed site-packages imports,
 all 23 module bytes against source and the wheel, the 29-entry archive allowlist,

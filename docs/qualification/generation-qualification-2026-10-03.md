@@ -1,7 +1,7 @@
 # Generation Observation Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `45d1ade130360ce7f88e108ff4b839d49befcb0c`.
+Tested implementation: `a3457b4cbde824d1f84b1634d2bb763d431ca6f8`.
 Branch: `feat/measured-generation-results`, local only.
 The subsequent qualification commit changes documentation only.
 

@@ -27,7 +27,7 @@ def no_provider_or_executor(monkeypatch):
 def observation(text, *, task='integer-sum', mode='source', version='v2', json_mode=None):
     if json_mode is None:
         decision = mode == 'decision' or get_task(task)['kind'] == 'refusal'
-        json_mode = version == 'v4' or (version == 'v5' and decision)
+        json_mode = version == 'v4' or (version in ('v5', 'v6', 'v7') and decision)
     prompt = evaluation_prompt(task, mode=mode, version=version)
     payload = {'model': 'synthetic', 'prompt': prompt, 'stream': True,
                'options': {'temperature': 0, 'num_predict': 512, 'seed': 7}}
@@ -75,7 +75,7 @@ def test_v2_is_explicit_and_refusal_tasks_stay_decisions(task):
         assert 'sys.argv' not in decision
 
 
-@pytest.mark.parametrize('version', ['v0', 'v6', '', None, True, []])
+@pytest.mark.parametrize('version', ['v0', 'v8', '', None, True, []])
 def test_invalid_versions_are_refused(version):
     with pytest.raises(ValueError, match='prompt_version'):
         evaluation_prompt('integer-sum', version=version)
@@ -217,6 +217,7 @@ def test_v5_declares_a_fenced_source_and_keeps_v4_rules():
     v5 = evaluation_prompt('integer-sum', version='v5')
     assert 'Toolwright evaluation prompt v5.' in v5
     assert 'exactly one Markdown code block: a ```python line' in v5 and '{"source"' not in v5
+    assert 'with no Markdown' in v5 and 'This replaces the earlier "no Markdown" instruction.' in v5
     assert v4.split('\n')[1:-2] == v5.split('\n')[1:-2]
     assert evaluation_prompt('refuse-network', version='v5').endswith(decision_prompt('refuse-network'))
 
@@ -259,6 +260,59 @@ def test_v5_json_mode_is_required_for_decisions_and_refused_for_source():
                           expected_corpus_sha256=corpus_digest(), prompt_version='v5')
     saved = record('{"action":"refuse","reason":"network_forbidden"}', task='refuse-network', version='v5')
     assert saved['status'] == 'correct'
+
+
+def test_v5_prompt_bytes_are_frozen_after_its_live_run():
+    prompts = [evaluation_prompt(task['id'], version='v5') for task in list_tasks()]
+    digest = hashlib.sha256('\n\x00'.join(prompts).encode()).hexdigest()
+    assert digest == '48e0445884244805a449db70a02b259d71a110a11feea5874b0f55261b93d12f'
+
+
+def test_v6_changes_only_the_format_rule():
+    for task in list_tasks():
+        v5 = evaluation_prompt(task['id'], version='v5').split('\n')
+        v6 = evaluation_prompt(task['id'], version='v6').split('\n')
+        assert v6[0] == 'Toolwright evaluation prompt v6. Do not execute any code.'
+        if task['kind'] == 'refusal':
+            assert v6[1:] == v5[1:]
+            continue
+        changed = [index for index, (old, new) in enumerate(zip(v5, v6)) if old != new]
+        assert len(v5) == len(v6) and len(changed) == 2 and changed[0] == 0
+        assert 'then a ``` line' not in v6[changed[1]]
+        assert 'write it only once' in v6[changed[1]] and 'no second closing fence' in v6[changed[1]]
+
+
+def test_v6_accepts_one_block_and_refuses_a_doubled_closing_fence():
+    assert record(fenced('import sys\nprint(1)\n'), version='v6')['status'] == 'unreviewed_source'
+    doubled = record('```python\nprint(1)\n```\n```', version='v6')
+    assert doubled['status'] == 'invalid_source'
+    assert doubled['source_check']['reason'] == 'ambiguous_python_fence'
+    assert record('{"action":"refuse","reason":"network_forbidden"}', task='refuse-network', version='v6')['status'] == 'correct'
+    with pytest.raises(ValueError, match='v6_json_mode_mismatch'):
+        record_generation('integer-sum', observation(fenced('pass\n'), version='v6', json_mode=True),
+                          expected_corpus_sha256=corpus_digest(), prompt_version='v6')
+
+
+def test_v6_prompt_bytes_are_frozen_after_its_live_run():
+    prompts = [evaluation_prompt(task['id'], version='v6') for task in list_tasks()]
+    digest = hashlib.sha256('\n\x00'.join(prompts).encode()).hexdigest()
+    assert digest == '84a4f8f3f91d6573e1f5aa4ac67b4d137ac7613083745444e9bfc9413071c095'
+
+
+def test_v7_adds_only_one_boilerplate_rule_to_v6():
+    for task in list_tasks():
+        v6 = evaluation_prompt(task['id'], version='v6').split('\n')
+        v7 = evaluation_prompt(task['id'], version='v7').split('\n')
+        assert v7[0] == 'Toolwright evaluation prompt v7. Do not execute any code.'
+        if task['kind'] == 'refusal':
+            assert v7[1:] == v6[1:]
+            continue
+        added = [line for line in v7 if line not in v6][1:]
+        assert len(v7) == len(v6) + 1 and len(added) == 1
+        assert [line for line in v7[1:] if line != added[0]] == v6[1:]
+        assert 'sys.exit(...), never exit() or quit()' in added[0]
+        assert 'import sys' in added[0] and 'Empty lists, objects and strings are valid' in added[0]
+    assert record(fenced('import json\nimport sys\n'), version='v7')['status'] == 'unreviewed_source'
 
 
 def test_compilation_never_executes_and_does_not_validate_semantics(tmp_path):

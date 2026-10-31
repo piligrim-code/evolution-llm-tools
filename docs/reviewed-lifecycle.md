@@ -59,9 +59,9 @@ evolution-tools review --store /private/local/reviews.sqlite3 inspect <proposal-
 
 ## Find Existing Proposals
 
-Discovery at implementation commit `125ec0d` passed local source and installed-wheel
+Discovery at implementation commit `0dfa919` passed local source and installed-wheel
 qualification, including the actual Linux container suite. See
-[the exact-commit results and remaining gaps](qualification-2026-10-03.md).
+[the exact-commit results and remaining gaps](qualification/qualification-2026-10-03.md).
 
 ```sh
 evolution-tools review list --state pending --limit 20

@@ -1,7 +1,7 @@
 # Prompt V2 Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `a70f9d6c663079e5db65622fb7a0e05ed5834866`.
+Tested implementation: `b0e4d88d9dd4286f12cfa79bb3446e36595b4055`.
 Branch: `feat/measured-generation-results`, local only.
 
 ## Results

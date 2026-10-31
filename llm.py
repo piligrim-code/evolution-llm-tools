@@ -122,18 +122,20 @@ class OllamaClient:
     async def generate_async(self, prompt, temperature=None, max_tokens=None, *, json_mode=False):
         return await self._generate(prompt, temperature, max_tokens, json_mode=json_mode, measured=False)
 
-    def generate_result(self, prompt, temperature=None, max_tokens=None, *, json_mode=False, seed=None):
+    def generate_result(self, prompt, temperature=None, max_tokens=None, *, json_mode=False, seed=None, think=None):
         try:
             asyncio.get_running_loop()
         except RuntimeError:
             return asyncio.run(self.generate_result_async(prompt, temperature, max_tokens,
-                                                           json_mode=json_mode, seed=seed))
+                                                           json_mode=json_mode, seed=seed, think=think))
         raise RuntimeError('Use await generate_result_async() inside an event loop')
 
-    async def generate_result_async(self, prompt, temperature=None, max_tokens=None, *, json_mode=False, seed=None):
-        return await self._generate(prompt, temperature, max_tokens, json_mode=json_mode, measured=True, seed=seed)
+    async def generate_result_async(self, prompt, temperature=None, max_tokens=None, *, json_mode=False, seed=None,
+                                    think=None):
+        return await self._generate(prompt, temperature, max_tokens, json_mode=json_mode, measured=True, seed=seed,
+                                    think=think)
 
-    async def _generate(self, prompt, temperature, max_tokens, *, json_mode, measured, seed=None):
+    async def _generate(self, prompt, temperature, max_tokens, *, json_mode, measured, seed=None, think=None):
         bounded_text(prompt, 65536)
         temperature = settings.temperature if temperature is None else temperature
         max_tokens = settings.max_tokens if max_tokens is None else max_tokens
@@ -145,12 +147,17 @@ class OllamaClient:
             raise ValueError("json_mode must be a boolean")
         if seed is not None and (type(seed) is not int or not 0 <= seed <= 2**31 - 1):
             raise ValueError('seed must be an integer in [0, 2147483647] or None')
+        if think is not None and type(think) is not bool:
+            raise ValueError('think must be a boolean or None')
         payload = {"model": self.model, "prompt": prompt, "stream": True,
                    "options": {"temperature": temperature, "num_predict": max_tokens}}
         if seed is not None:
             payload['options']['seed'] = seed
         if json_mode:
             payload["format"] = "json"
+        if think is not None:
+            # Top-level Ollama switch for thinking models; omitted entirely when None.
+            payload['think'] = think
         endpoint, timeout = self.url, self.timeout
         limits = aiohttp.ClientTimeout(total=timeout, connect=min(5, timeout), sock_read=min(15, timeout))
         parser = _Stream(measured=measured)
@@ -179,7 +186,7 @@ class OllamaClient:
                 request_sha256=request_digest(payload), endpoint_sha256=text_digest(endpoint),
                 response_sha256=text_digest(answer), temperature=temperature, max_tokens=max_tokens,
                 seed=seed, json_mode=json_mode, timeout_seconds=timeout,
-                client_elapsed_seconds=elapsed, provider_usage=usage)
+                client_elapsed_seconds=elapsed, provider_usage=usage, think=think)
         except OllamaError:
             raise
         except TimeoutError:

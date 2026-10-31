@@ -1,7 +1,7 @@
 # Toolwright Qualification Checkpoint
 
 Date: October 7, 2026.
-Tested revision: `251fd00f4f0ce16680eb41a5772d754a79517ab6`.
+Tested revision: `f0d074cf7ba682b67ab60a02151aa999c0299b28`.
 This summary records completed checks, not a production-release certification.
 
 ## Completed Work

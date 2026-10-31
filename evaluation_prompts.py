@@ -5,15 +5,19 @@ from .evaluation_corpus import decision_prompt, generation_prompt, get_task
 def evaluation_prompt(task_id, *, mode='source', version='v1'):
     if mode not in ('source', 'decision'):
         raise ValueError('invalid_evaluation_generation_mode')
-    if version not in ('v1', 'v2', 'v3', 'v4', 'v5'):
+    if version not in ('v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7'):
         raise ValueError('invalid_evaluation_prompt_version')
     task = get_task(task_id)
     prompt = decision_prompt(task_id) if mode == 'decision' else generation_prompt(task_id)
     if version == 'v1':
         return prompt
-    if version in ('v4', 'v5'):
+    if version in ('v4', 'v5', 'v6', 'v7'):
         # v4: provider JSON mode for everything. v5: JSON mode for decisions only,
         # source as one ```python block, the format small models produce anyway.
+        # v6: v5 with only the format rule reworded; v5 replies often closed the
+        # block twice, likely echoing the phrase "then a ``` line".
+        # v7: v6 plus one boilerplate rule for the defects v6 still showed
+        # (missing sys import, exit() without the site module, empty input refused).
         header = f'Toolwright evaluation prompt {version}. Do not execute any code.'
         if mode == 'decision' or task['kind'] == 'refusal':
             return header + '\n' + prompt
@@ -28,8 +32,17 @@ def evaluation_prompt(task_id, *, mode='source', version='v1'):
             'Reply with exactly one JSON object {"source": "<complete Python source of tool.py>"} and no other keys or text.'
             if version == 'v4' else
             'Reply with exactly one Markdown code block: a ```python line, the complete source of tool.py, '
-            'then a ``` line. No text before or after the block, and no REQUIREMENTS line.',
+            'then a ``` line. This replaces the earlier "no Markdown" instruction. '
+            'No text before or after the block, and no REQUIREMENTS line.'
+            if version == 'v5' else
+            'Format: put the complete source of tool.py in one ```python code block. This replaces the earlier '
+            '"no Markdown" instruction. Close the block with a single ``` line, write it only once, and stop '
+            'there: nothing after it, no second closing fence, no REQUIREMENTS line.',
         ]
+        if version == 'v7':
+            rules.insert(-1, 'Start tool.py with "import json" and "import sys" at the top level. Exit only with '
+                             'sys.exit(...), never exit() or quit(). Empty lists, objects and strings are valid input '
+                             'unless the task says otherwise.')
         if task_id == 'integer-sum':
             rules.append('Input contract: data must contain exactly "values"; it must be a list of exact integers. An empty list is valid and sums to zero.')
         return '\n'.join(rules)

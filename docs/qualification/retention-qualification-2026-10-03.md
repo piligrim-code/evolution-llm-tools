@@ -1,7 +1,7 @@
 # Retention Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `53dbd71b94d8f08b449902b1249f8a1f2e052179`.
+Tested implementation: `c89b662e1c4674670f5924ac19b246964412f83c`.
 The subsequent qualification commit changes documentation only. No remote push,
 merge, release or live database migration was performed.
 
@@ -72,7 +72,7 @@ The artifact predates this documentation-only report/README update.
 
 ## Limits And Next Gates
 
-The [retention policy](retention.md) deliberately provides logical payload
+The [retention policy](../retention.md) deliberately provides logical payload
 removal, not secure erasure, physical compaction, bounded total disk usage or
 catalog deletion. Unresolved cleanup receipts cannot yet be marked resolved by
 an operator API. Permanent markers do not protect against privileged rewriting

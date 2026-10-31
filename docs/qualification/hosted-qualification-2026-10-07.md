@@ -3,7 +3,7 @@
 Date: October 7, 2026, Asia/Yekaterinburg.
 Repository: `piligrim-code/evolution-llm-tools`.
 Branch: `feat/measured-generation-results`.
-Tested head: `e163644a47f7fa2dad2afbc29be6998fa392b6a4`.
+Tested head: `fca8743d1c71d1077d553374023654575bdefd77`.
 GitHub Actions run: `37666186672`, triggered by push; all four jobs succeeded.
 
 ## Results

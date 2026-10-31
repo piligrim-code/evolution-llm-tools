@@ -1,7 +1,7 @@
 # Output Contract Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `6cd22cfd5d334dbd2462fb42f331fdcee1bdecb4`.
+Tested implementation: `72e94b90d706ab382edb81a9f5aa63e65e6d5404`.
 The subsequent report commit changes documentation only. No release, merge or
 remote push was performed.
 
@@ -66,7 +66,7 @@ sdist was qualified. Rebuilding after README changes can change the artifact has
 
 ## Remaining Gates
 
-This validates [the documented assertions](output-contracts.md) on the stated
+This validates [the documented assertions](../output-contracts.md) on the stated
 environments, not general tool correctness or a production release. Matching one
 independently supplied expectation is specific to those arguments and the
 correctness of that expectation. V1 proposals remain explicitly unvalidated.

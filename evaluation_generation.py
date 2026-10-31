@@ -71,9 +71,9 @@ def _bound(task_id, result, *, expected_corpus_sha256, mode, prompt_version):
     kind = 'decision' if mode == 'decision' or task['kind'] == 'refusal' else 'source'
     if prompt_version == 'v4' and result.json_mode is not True:
         raise ValueError('evaluation_prompt_v4_requires_json_mode')
-    if prompt_version == 'v5' and result.json_mode is not (kind == 'decision'):
-        # v5 decisions use provider JSON mode; v5 source must not, since it is a fenced block.
-        raise ValueError('evaluation_prompt_v5_json_mode_mismatch')
+    if prompt_version in ('v5', 'v6', 'v7') and result.json_mode is not (kind == 'decision'):
+        # v5-v7 decisions use provider JSON mode; their source must not, since it is a fenced block.
+        raise ValueError(f'evaluation_prompt_{prompt_version}_json_mode_mismatch')
     if result.prompt_sha256 != text_digest(prompt) or result.response_sha256 != text_digest(result.text):
         raise ValueError('evaluation_generation_binding_mismatch')
     options = {'temperature': result.temperature, 'num_predict': result.max_tokens}
@@ -82,6 +82,8 @@ def _bound(task_id, result, *, expected_corpus_sha256, mode, prompt_version):
     payload = {'model': result.requested_model, 'prompt': prompt, 'stream': True, 'options': options}
     if result.json_mode:
         payload['format'] = 'json'
+    if result.think is not None:
+        payload['think'] = result.think
     if result.request_sha256 != request_digest(payload):
         raise ValueError('evaluation_generation_request_mismatch')
     return kind
@@ -96,7 +98,7 @@ def _checked_source(result, prompt_version):
         source = _envelope_source(result.text)
         if source is None:
             return None, {'syntax_valid': None, 'reason': 'invalid_source_envelope'}
-    elif prompt_version == 'v5':
+    elif prompt_version in ('v5', 'v6', 'v7'):
         try:
             source = _python_fence_body(result.text)
         except ModelContractError as error:

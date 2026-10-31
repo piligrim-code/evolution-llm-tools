@@ -1,7 +1,7 @@
 # Source Transformation Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `3f7d516a7f0386f5d620ebd5fa4b401bc6c452e6`.
+Tested implementation: `82d047deee49cfab0b13b25ff5b256ddaa05c643`.
 Branch: `feat/measured-generation-results`, local only.
 
 ## Results
@@ -47,7 +47,7 @@ The raw response and its hash are retained alongside the derived source/hash and
 transformation version. A fenced v2 record remains invalid_source. Its separately
 derived body is unreviewed_source, with no syntax/correctness or execution claim.
 
-See [the API and exact envelope](source-transformations.md). Hash binding detects
+See [the API and exact envelope](../source-transformations.md). Hash binding detects
 mixed observations, not malicious fabrication or independent model identity.
 No model-quality improvement, safety approval, hosted CI result, publication,
 merge, release or production readiness is established by these tests.
