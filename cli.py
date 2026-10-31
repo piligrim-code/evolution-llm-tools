@@ -3,7 +3,8 @@ from rich.console import Console
 from .manager import code_react_loop
 from .mcp.registry import ToolRegistry
 from .config import settings
-from .container_runner import ContainerPolicy, ContainerError, require_execution_mode
+from .container_runner import ContainerPolicy, ContainerError, require_execution_mode, _display_text
+from .llm import OllamaError
 
 app = typer.Typer()
 console = Console()
@@ -19,11 +20,11 @@ def run(question: str, model: str = typer.Option(None, help="Override Ollama mod
         if unsafe_exec:
             console.print('[yellow]Unsafe host execution enabled for this command.[/yellow]')
         res = code_react_loop(question, model=model, allow_unsafe_execution=unsafe_exec, container=policy)
-    except (PermissionError, ValueError, ContainerError) as error:
+    except (PermissionError, ValueError, ContainerError, OllamaError) as error:
         console.print(str(error))
         raise typer.Exit(code=2)
     console.rule("[bold green]Final Answer")
-    console.print(res["answer"])
+    console.print(_display_text(res["answer"].encode("utf-8")), markup=False, highlight=False)
 
 @app.command("tools")
 def list_tools():
@@ -43,7 +44,7 @@ def tool_run(name: str, args: str = typer.Option("{}", help="JSON string for arg
     except (PermissionError, ValueError, ContainerError) as error:
         console.print(str(error))
         raise typer.Exit(code=2)
-    console.print(res)
+    console.print(_display_text(res.encode("utf-8")), markup=False, highlight=False)
 
 if __name__ == "__main__":
     app()

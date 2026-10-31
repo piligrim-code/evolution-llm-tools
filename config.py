@@ -6,7 +6,7 @@ class Settings(BaseModel):
     model: str = "qwen2.5:14b"
     temperature: float = 0.2
     max_tokens: int = 1024
-    request_timeout: int = 90  # seconds
+    request_timeout: int = 90  # aggregate HTTP deadline in seconds
     allow_pip: bool = False    # if True, generated tools may install deps
     tools_dir: str = ".mcp/tools"  # persisted MCP-like tools
     runs_dir: str = ".runs"        # per-run scratch
