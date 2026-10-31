@@ -27,8 +27,10 @@ def strip_code_fences(text: str) -> str:
     text = re.sub(r"\s*```$", "", text)
     return text.strip()
 
-def propose_tool_scripts(tool_spec: Dict[str, Any], llm: OllamaClient) -> Dict[str, str]:
+def propose_tool_scripts(tool_spec: Dict[str, Any], llm: OllamaClient, *, stdlib_only=False) -> Dict[str, str]:
     prompt = GEN_PROMPT.format(tool_spec=json.dumps(tool_spec, ensure_ascii=False, indent=2))
+    if stdlib_only:
+        prompt += "\nExecution profile: Python standard library only, no network, no host files, no pip. REQUIREMENTS must be none."
     raw_code = llm.generate(prompt, max_tokens=1800)
     clean_code = strip_code_fences(raw_code)
 

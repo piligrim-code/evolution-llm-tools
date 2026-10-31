@@ -16,8 +16,10 @@ Given the user's question, propose a SPEC for a single-file Python tool that hel
   example_args: example JSON object for quick test
 """
 
-def brainstorm_tools(question: str, tool_name_hint: str, llm: OllamaClient) -> Dict[str, Any]:
+def brainstorm_tools(question: str, tool_name_hint: str, llm: OllamaClient, *, stdlib_only=False) -> Dict[str, Any]:
     prompt = BRAINSTORM_PROMPT + f"\nUser question:\n{question}\nName hint: {tool_name_hint}\nReturn JSON only."
+    if stdlib_only:
+        prompt += "\nExecution profile: Python standard library only, no network, no host files. All inputs must be JSON arguments."
     text = llm.generate(prompt)
     # Try extracting JSON
     import json as _json, re as _re

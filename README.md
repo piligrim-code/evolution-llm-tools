@@ -14,10 +14,12 @@ python -m pytest tests -q
 python -m alita --help
 ```
 
-Tests use temporary directories, fake model responses and mostly mocked process
+Default tests use temporary directories, fake model responses and mostly mocked process
 execution. One explicitly approved, hand-written fixture runs in a temporary
 venv and doubles a synthetic number; it does not use generated model output.
-The tests require no Ollama server, downloaded model or credentials.
+The default tests require no Ollama server, downloaded model or credentials.
+An opt-in Docker suite separately verifies actual OS controls with hand-written
+adversarial synthetic fixtures. It never executes generated model output on the host.
 
 ## Default Behaviour
 
@@ -32,6 +34,38 @@ return a direct model answer. If a tool would be generated or executed, the
 default is to stop with an explicit permission error. The `tool-run` example
 above also refuses execution without consent. Model output, saved metadata
 and requirement files cannot grant that consent.
+
+## Explicit Container Mode
+
+With a trusted local Linux Docker engine (cgroup v2 and seccomp required), first
+review/pull an image that provides `/usr/bin/env` and `/usr/local/bin/python`.
+Resolve its immutable local ID; the executor never pulls or builds images:
+
+```powershell
+docker pull python:3.12-slim
+$image = docker image inspect python:3.12-slim --format '{{.Id}}'
+evolution-tools run "Calculate the average of 3, 5 and 7" --container-image $image
+evolution-tools tool-run reviewed_tool --container-image $image --args '{"value":2}'
+```
+
+The model service is still separately provisioned. Container mode accepts only
+standard-library tools with empty requirements; pip/network/host-file workflows
+are refused, not silently run outside the container. It is mutually exclusive
+with `--unsafe-exec`. No setting or saved tool metadata permanently enables it.
+
+The container has no user host mounts or network, a read-only root, an unprivileged
+UID, dropped capabilities, no-new-privileges, cgroup/resource limits, bounded output
+and an ephemeral work directory. Limits are inspected before start and cleanup
+is restricted to the uniquely labeled owned container. This is Linux container
+containment with a trusted daemon/image, not a VM or a multi-tenant security claim.
+Use a dedicated disposable engine/VM for untrusted workloads. See
+`docs/container-execution.md` for the exact controls and failure/cleanup boundaries.
+
+Actual Docker regression command (pulls a public Python dependency image):
+
+```sh
+python tools/run_container_tests.py
+```
 
 ## Explicit Unsafe Mode
 
@@ -52,7 +86,8 @@ not malicious code or races caused by a hostile local user.
 
 Dependency installation needs separate `settings.allow_pip = True` approval;
 it remains disabled by default. Installation can itself execute third-party
-code. An OS-isolated executor is future work, not a feature of this patch.
+code. Those permissions apply only to unsafe host mode; container mode never
+installs requirements, even when `allow_pip` is enabled.
 
 ## Registry Boundaries
 
@@ -64,6 +99,7 @@ code. An OS-isolated executor is future work, not a feature of this patch.
 - `.runs/` and `.mcp/` are local artifacts and must not be committed.
 
 The public audit corrections do not change the original MIT license. The web
-search module is still a stub. Full model quality, hostile-code isolation,
-multi-user operation, process-tree cleanup and production deployment are not
-qualified by the offline tests.
+search module is still a stub. Full model quality, resistance to kernel/container
+escapes, multi-user operation and production deployment are not qualified by
+the offline tests or the synthetic container checks. The two execution modes
+have deliberately different limits and trust assumptions.
