@@ -75,7 +75,8 @@ python tools/run_container_tests.py
 ## Using it
 
 You need a local Ollama model and a trusted local Linux Docker engine (cgroup v2,
-seccomp). Resolve an immutable image ID once; the executor never pulls or builds
+seccomp). The default model is `gemma3:12b` (set in `config.py`); `--model`
+overrides it per command. Resolve an immutable image ID once; the executor never pulls or builds
 images:
 
 ```powershell

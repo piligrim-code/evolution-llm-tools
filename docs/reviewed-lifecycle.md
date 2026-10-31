@@ -32,7 +32,7 @@ not approve. `--yes` is explicit confirmation for callers that have already
 reviewed that digest, not a substitute for reviewing generated code. Never let
 the generating model call `approve` or control your operator shell/database.
 
-`propose` defaults to the configured model (currently `qwen2.5:14b`); `--model`
+`propose` defaults to the configured model (currently `gemma3:12b`); `--model`
 overrides it for drafting only. Without `--args`, the question supplies declared
 string arguments named `text`, `question` or `input`. Other names require explicit
 arguments. All declared arguments are required, extra keys are rejected, and
