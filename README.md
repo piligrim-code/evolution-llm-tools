@@ -1,8 +1,87 @@
-# Evolution LLM Tools
+# Toolwright
 
-An experimental Ollama client that proposes small Python tools and keeps a
-local registry. The installed import namespace is `alita`, matching the
-original module layout. This is not a production autonomous-agent platform.
+Toolwright is an experimental Ollama client for generating small Python tools,
+explicitly controlled execution, and reuse through a local registry. It was
+previously named Evolution LLM Tools. This is not a production autonomous-agent
+platform.
+
+The product name is **Toolwright**. For compatibility, the repository and Python
+distribution remain `evolution-llm-tools`, the CLI remains `evolution-tools`, and
+the import namespace remains `alita`. No install command, import or stored tool
+needs changing for this naming update. Toolwright remains independent of MCP
+Memory, with its own code, dependencies and release lifecycle.
+
+## Review Before Execution
+
+The new `evolution-tools review` commands separate non-executing drafts,
+inspection, explicit approval and one contained execution attempt. Approval is
+bound to the source, contract, exact arguments and immutable container image.
+Changed proposals and consumed approvals cannot execute through this path.
+See the [reviewed lifecycle walkthrough](docs/reviewed-lifecycle.md) for commands,
+failure handling and trust limits. Existing `run`/`tool-run` commands keep their
+explicit legacy semantics; they are not silently routed through review.
+
+Discovery adds `review list` with state filters/pagination and read-only
+`list`/`inspect` handles. Hosted qualification of the current measured-results
+branch on Ubuntu/Windows with Python 3.12/3.13 passed 680 default tests on each
+combination, including required symlink coverage. Both Ubuntu jobs also passed
+all 37 actual Linux container tests. See the
+[exact-commit report and limits](docs/hosted-qualification-2026-10-07.md).
+This is experimental software, not a production release certification.
+
+Optional [reviewed output contracts](docs/output-contracts.md) provide
+exact text or JSON-object expectations tied to the approved proposal. A process
+exit code of zero no longer makes a contract-bearing CLI run successful when
+its output fails the check. Old proposals retain their explicit legacy behavior.
+
+The separate [validated version catalog](docs/version-catalog.md) preserves an
+explicitly promoted successful proposal. `catalog prepare` copies a selected
+version into a fresh pending review, never into an automatically runnable tool.
+Versions and their first validation provenance are immutable through the API.
+
+`review execute --structured` and `ReviewStore.execute_result()` provide
+[typed per-attempt outcomes](docs/typed-outcomes.md), including ambiguous failures
+without automatic retries. Three [packaged deterministic demos](docs/demos.md)
+cover text summaries, grouped tabular totals and JSON projection. `demo prepare`
+only creates a pending proposal; normal inspection and approval remain mandatory.
+
+[Explicit retention](docs/retention.md) adds read-only `review prune` previews
+and permanent `catalog retire` markers. Applying a plan requires its inspected
+digest and confirmation. Pruned IDs remain terminal; retirement retains proof
+and does not revoke existing proposals. No automatic deletion or secure erasure
+is provided. Writable opens upgrade private stores to schema 2; stop old clients
+before upgrading.
+
+An [offline evaluation corpus](docs/evaluation.md) fixes 20 synthetic tasks:
+16 runnable tasks with 48 example/held-out cases, and four policy-refusal tasks.
+`eval prepare` only creates pending reviews; `eval score` revalidates existing
+receipts and counts missing cases. It does not call models or automatically run
+candidates. Real-model quality and unavailable timing/resource metrics remain
+unqualified rather than being inferred from handwritten fixture results.
+The local evaluation candidate passed 496 default and 37 actual Docker tests
+from source and an installed wheel; see [its qualification report](docs/evaluation-qualification-2026-10-03.md).
+This new candidate has not yet received hosted CI qualification.
+
+The additive [measured generation API](docs/generation-measurements.md) records
+local request elapsed time, explicit settings and optional provider counters.
+Legacy text APIs are unchanged; generated text is omitted from summaries by
+default. Evaluation records bind the frozen prompt and response without approving
+or executing code. Model aliases are not verified artifact identities.
+The local measured-generation candidate passed 549 default tests from source
+and an installed wheel, plus 37 actual Docker checks on the wheel; see
+[the qualification report](docs/generation-qualification-2026-10-03.md).
+No real-model inference is included in those results.
+
+Opt-in prompt v2 makes the argv and JSON-output contract explicit and rejects
+malformed source without executing it. V1 prompts remain frozen. Syntax success
+still means unreviewed, not correct or approved. The local v2 candidate passed
+606 default tests from source and an installed wheel; see
+[the qualification and remaining limits](docs/prompt-v2-qualification-2026-10-03.md).
+
+An explicit [source transformation](docs/source-transformations.md) can remove
+one complete Python fence while preserving the original observation and separate
+source hashes. It does not compile or approve the result. Source and installed
+wheel passed 678 default tests; see [qualification](docs/source-transformation-qualification-2026-10-03.md).
 
 ## Install And Test
 
@@ -18,6 +97,10 @@ Default tests use temporary directories, fake model responses and mostly mocked 
 execution. One explicitly approved, hand-written fixture runs in a temporary
 venv and doubles a synthetic number; it does not use generated model output.
 The default tests require no Ollama server, downloaded model or credentials.
+The [installed-wheel qualification gate](docs/ci-qualification.md) checks package
+identity and source/installed bytes, retains structured test evidence, and refuses
+unexpected skips. Hosted CI requires symlink coverage and adds actual Docker
+tests on Ubuntu; unexecuted workflow changes are not a passed Linux-host gate.
 An opt-in Docker suite separately verifies actual OS controls with hand-written
 adversarial synthetic fixtures. It never executes generated model output on the host.
 

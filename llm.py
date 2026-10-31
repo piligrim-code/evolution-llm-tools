@@ -1,12 +1,14 @@
 """Bounded Ollama generation with strict NDJSON completion and owned HTTP cleanup."""
 import asyncio
 import math
+import time
 from urllib.parse import urlsplit
 
 import aiohttp
 
 from .config import settings
 from .contracts import ModelContractError, json_object, bounded_text
+from .generation_results import GenerationResult, final_metadata, request_digest, text_digest
 
 MAX_BODY = 1024 * 1024
 MAX_LINE = 256 * 1024
@@ -36,11 +38,13 @@ def _endpoint(value):
 
 
 class _Stream:
-    def __init__(self):
+    def __init__(self, *, measured=False):
         self.buffer = bytearray()
         self.total = self.text_size = self.events = 0
         self.done = False
         self.parts = []
+        self.measured = measured
+        self.metadata = None
 
     def _line(self, line):
         if len(line) > MAX_LINE:
@@ -70,6 +74,11 @@ class _Stream:
             raise OllamaError("text_too_large")
         self.parts.append(part)
         self.done = event["done"]
+        if self.done and self.measured:
+            try:
+                self.metadata = final_metadata(event)
+            except ValueError:
+                raise OllamaError('invalid_generation_metadata') from None
 
     def feed(self, data):
         self.total += len(data)
@@ -111,6 +120,20 @@ class OllamaClient:
         raise RuntimeError("Use await generate_async() inside an event loop")
 
     async def generate_async(self, prompt, temperature=None, max_tokens=None, *, json_mode=False):
+        return await self._generate(prompt, temperature, max_tokens, json_mode=json_mode, measured=False)
+
+    def generate_result(self, prompt, temperature=None, max_tokens=None, *, json_mode=False, seed=None):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.generate_result_async(prompt, temperature, max_tokens,
+                                                           json_mode=json_mode, seed=seed))
+        raise RuntimeError('Use await generate_result_async() inside an event loop')
+
+    async def generate_result_async(self, prompt, temperature=None, max_tokens=None, *, json_mode=False, seed=None):
+        return await self._generate(prompt, temperature, max_tokens, json_mode=json_mode, measured=True, seed=seed)
+
+    async def _generate(self, prompt, temperature, max_tokens, *, json_mode, measured, seed=None):
         bounded_text(prompt, 65536)
         temperature = settings.temperature if temperature is None else temperature
         max_tokens = settings.max_tokens if max_tokens is None else max_tokens
@@ -120,16 +143,22 @@ class OllamaClient:
             raise ValueError("max_tokens must be an integer in [1, 4096]")
         if type(json_mode) is not bool:
             raise ValueError("json_mode must be a boolean")
+        if seed is not None and (type(seed) is not int or not 0 <= seed <= 2**31 - 1):
+            raise ValueError('seed must be an integer in [0, 2147483647] or None')
         payload = {"model": self.model, "prompt": prompt, "stream": True,
                    "options": {"temperature": temperature, "num_predict": max_tokens}}
+        if seed is not None:
+            payload['options']['seed'] = seed
         if json_mode:
             payload["format"] = "json"
-        limits = aiohttp.ClientTimeout(total=self.timeout, connect=min(5, self.timeout), sock_read=min(15, self.timeout))
-        parser = _Stream()
+        endpoint, timeout = self.url, self.timeout
+        limits = aiohttp.ClientTimeout(total=timeout, connect=min(5, timeout), sock_read=min(15, timeout))
+        parser = _Stream(measured=measured)
+        started = time.monotonic()
         try:
-            async with asyncio.timeout(self.timeout):
+            async with asyncio.timeout(timeout):
                 async with aiohttp.ClientSession(timeout=limits, trust_env=False, auto_decompress=False) as session:
-                    async with session.post(self.url, json=payload, allow_redirects=False,
+                    async with session.post(endpoint, json=payload, allow_redirects=False,
                                             headers={"Accept-Encoding": "identity"}) as response:
                         if response.status != 200:
                             raise OllamaError("http_error", response.status)
@@ -139,7 +168,18 @@ class OllamaClient:
                             raise OllamaError("response_too_large")
                         async for chunk in response.content.iter_chunked(4096):
                             parser.feed(chunk)
-            return parser.finish()
+            answer = parser.finish()
+            if not measured:
+                return answer
+            elapsed = time.monotonic() - started
+            usage, provider_model, done_reason = parser.metadata
+            return GenerationResult(
+                text=answer, requested_model=payload['model'], provider_model=provider_model,
+                done_reason=done_reason, prompt_sha256=text_digest(prompt),
+                request_sha256=request_digest(payload), endpoint_sha256=text_digest(endpoint),
+                response_sha256=text_digest(answer), temperature=temperature, max_tokens=max_tokens,
+                seed=seed, json_mode=json_mode, timeout_seconds=timeout,
+                client_elapsed_seconds=elapsed, provider_usage=usage)
         except OllamaError:
             raise
         except TimeoutError:
