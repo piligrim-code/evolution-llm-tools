@@ -9,6 +9,7 @@ Example cases may feed development and repair; held-out cases serve admission on
 from copy import deepcopy
 
 from .evaluation_corpus import get_task as _v1_task, list_tasks as _v1_tasks
+from .evaluation_corpus import task_spec  # noqa: F401  (part of the task-source interface)
 from .review import _digest, _json
 
 CORPUS_VERSION = 'toolwright-eval-v2'
