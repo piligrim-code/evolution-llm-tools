@@ -69,6 +69,8 @@ class GenerationResult:
     timeout_seconds: float
     client_elapsed_seconds: float
     provider_usage: GenerationUsage
+    # Requested Ollama thinking switch; None means the field was not sent.
+    think: bool | None = None
 
     def to_dict(self, *, include_text=False):
         if type(include_text) is not bool:

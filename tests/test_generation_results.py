@@ -133,6 +133,41 @@ def test_invalid_seed_is_rejected_before_http(monkeypatch, seed):
     unexpected.assert_not_called()
 
 
+@pytest.mark.parametrize('think', [1, 'false', 0.0])
+def test_invalid_think_is_rejected_before_http(monkeypatch, think):
+    unexpected = Mock(side_effect=AssertionError('invalid options must not open HTTP'))
+    monkeypatch.setattr(llm.aiohttp, 'ClientSession', unexpected)
+    with pytest.raises(ValueError, match='think'):
+        asyncio.run(OllamaClient().generate_result_async('Synthetic', think=think))
+    unexpected.assert_not_called()
+
+
+def test_think_switch_is_sent_only_when_set_and_bound_into_the_record():
+    received = []
+
+    async def handler(request):
+        received.append(await request.json())
+        return web.Response(body=frame("print('unreviewed')", True, **METRICS))
+
+    async def operation(url):
+        client = OllamaClient(url, 'synthetic-model', timeout=5)
+        prompt = generation_prompt('integer-sum')
+        plain = await client.generate_result_async(prompt, temperature=0, max_tokens=50, seed=7)
+        off = await client.generate_result_async(prompt, temperature=0, max_tokens=50, seed=7, think=False)
+        assert plain.think is None and off.think is False
+        assert plain.to_dict()['think'] is None and off.to_dict()['think'] is False
+        for result in (plain, off):
+            record = record_generation('integer-sum', result, expected_corpus_sha256=corpus_digest())
+            assert record['status'] == 'unreviewed_source'
+        with pytest.raises(ValueError, match='request_mismatch'):
+            record_generation('integer-sum', replace(off, think=True), expected_corpus_sha256=corpus_digest())
+        with pytest.raises(ValueError, match='request_mismatch'):
+            record_generation('integer-sum', replace(off, think=None), expected_corpus_sha256=corpus_digest())
+
+    asyncio.run(with_provider(handler, operation))
+    assert 'think' not in received[0] and received[1]['think'] is False
+
+
 @pytest.mark.parametrize('body,code', [(frame('partial', False), 'incomplete_response'),
                                      (frame('done', True) + frame('extra', False), 'trailing_event')])
 def test_measured_result_requires_complete_bounded_stream(body, code):

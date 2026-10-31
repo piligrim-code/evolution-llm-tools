@@ -125,6 +125,8 @@ def record_repair(task_id, result, failures, *, expected_corpus_sha256):
     if result.seed is not None:
         options['seed'] = result.seed
     payload = {'model': result.requested_model, 'prompt': prompt, 'stream': True, 'options': options}
+    if result.think is not None:
+        payload['think'] = result.think
     if result.request_sha256 != request_digest(payload):
         raise ValueError('repair_generation_request_mismatch')
     try:

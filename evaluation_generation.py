@@ -82,6 +82,8 @@ def _bound(task_id, result, *, expected_corpus_sha256, mode, prompt_version):
     payload = {'model': result.requested_model, 'prompt': prompt, 'stream': True, 'options': options}
     if result.json_mode:
         payload['format'] = 'json'
+    if result.think is not None:
+        payload['think'] = result.think
     if result.request_sha256 != request_digest(payload):
         raise ValueError('evaluation_generation_request_mismatch')
     return kind
