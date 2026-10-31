@@ -1,7 +1,7 @@
 # Typed Outcomes And Demos Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `d895a14005d61658b20ddadf6ceb42603af2c086`.
+Tested implementation: `12607ba72bcc81c240a504f07422d9f9ccacf79f`.
 The subsequent qualification commit changes documentation only. No remote push,
 merge or release was performed.
 

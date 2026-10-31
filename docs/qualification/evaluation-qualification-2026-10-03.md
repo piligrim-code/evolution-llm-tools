@@ -1,7 +1,7 @@
 # Offline Evaluation Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `3adbca0531d77b20ed08f293065a7a4a2c70a9ac`.
+Tested implementation: `3aa2346b5ba272786be868f554d030d3906dde55`.
 Branch: `feat/offline-evaluation-corpus`, local only.
 The subsequent qualification update changes documentation, not runtime/tests.
 
@@ -73,7 +73,7 @@ sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609243e51e4e0016
 Owned cleanup assertions passed and the final executor-owner listing was empty.
 No broad cleanup, other-project change, live database migration or MCP Memory
 testing occurred. No new branch push, merge, release or hosted CI run occurred.
-Hosted results for the earlier `96bc576` baseline do not qualify this new code.
+Hosted results for the earlier `97b4b79` baseline do not qualify this new code.
 
 ## Remaining
 

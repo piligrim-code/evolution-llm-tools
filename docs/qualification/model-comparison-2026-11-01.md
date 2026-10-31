@@ -1,8 +1,8 @@
 # Prompt v7 and Model Comparison
 
 Date: November 1, 2026.
-Branch: `feat/adaptive-skills`, runtime commits `33bc7d7` (prompt v7) and
-`70b2951` (optional `think` switch). Local Ollama, `temperature=0`, one
+Branch: `feat/adaptive-skills`, runtime commits `d89590d` (prompt v7) and
+`d0286c7` (optional `think` switch). Local Ollama, `temperature=0`, one
 request per task, no transformations. Scored on the frozen
 `toolwright-eval-v1` corpus, as in earlier runs.
 

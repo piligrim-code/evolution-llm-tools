@@ -1,7 +1,7 @@
 # Prompt v6 Qualification
 
 Date: October 28–29, 2026.
-Branch: `feat/adaptive-skills`, runtime commit `e20116e`. Model: local Ollama
+Branch: `feat/adaptive-skills`, runtime commit `e6e9945`. Model: local Ollama
 `qwen2.5:7b`, `temperature=0`, `seed=7`, `max_tokens=2048`. JSON mode for
 decisions only. One request per task, no retries, no transformations. Scored on
 the frozen `toolwright-eval-v1` corpus for comparison with earlier runs.

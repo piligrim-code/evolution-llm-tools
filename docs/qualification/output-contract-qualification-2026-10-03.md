@@ -1,7 +1,7 @@
 # Output Contract Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `6cd22cfd5d334dbd2462fb42f331fdcee1bdecb4`.
+Tested implementation: `72e94b90d706ab382edb81a9f5aa63e65e6d5404`.
 The subsequent report commit changes documentation only. No release, merge or
 remote push was performed.
 

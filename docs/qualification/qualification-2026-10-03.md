@@ -2,8 +2,8 @@
 
 Date: October 3, 2026, Asia/Yekaterinburg.
 
-Tested implementation commit: `125ec0db92fa159ffc579589f182951af3a46614`.
-This covers the reviewed lifecycle from `cd1255a` and discovery from `125ec0d`.
+Tested implementation commit: `0dfa9197cb2af4b2bd1401a758698f454ab0523f`.
+This covers the reviewed lifecycle from `45663ca` and discovery from `0dfa919`.
 The follow-up commit adding this report changes documentation only; no runtime
 code or tests were changed during qualification. Nothing was pushed, merged or
 released by this local verification.

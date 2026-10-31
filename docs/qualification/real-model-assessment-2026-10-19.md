@@ -2,8 +2,8 @@
 
 Date: October 19, 2026.
 Repository branch: `feat/measured-generation-results`.
-Assessed runtime: commit `c3ab773` (runtime modules unchanged from hosted-tested
-commit `e163644`).
+Assessed runtime: commit `45b0920` (runtime modules unchanged from hosted-tested
+commit `fca8743`).
 
 ## Summary
 
@@ -69,11 +69,11 @@ harness and containment, not model quality.
 
 ## System Checks And Limits
 
-At `c3ab773`, the installed-wheel qualifier passed with **679 passed, 38
+At `45b0920`, the installed-wheel qualifier passed with **679 passed, 38
 skipped**; all 30 Python modules matched the existing wheel and source bytes.
-The exact runtime commit `e163644` passed hosted CI on Ubuntu 24.04 and Windows
+The exact runtime commit `fca8743` passed hosted CI on Ubuntu 24.04 and Windows
 2022 with Python 3.12/3.13, including required symlink coverage and 37 actual
-container tests on each Ubuntu job. `c3ab773` changes documentation only.
+container tests on each Ubuntu job. `45b0920` changes documentation only.
 
 No generation call was made on October 19. There is no current comparison of
 direct-model answers versus generated-tool answers, repeated-seed reliability,

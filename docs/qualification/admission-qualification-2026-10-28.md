@@ -1,7 +1,7 @@
 # Admission Qualification: October 21 Candidates
 
 Date: October 28, 2026.
-Branch: `feat/adaptive-skills`, runtime commit `f6d72ab`.
+Branch: `feat/adaptive-skills`, runtime commit `1ae636f`.
 Corpus: `toolwright-eval-v2`
 (`531a8347ac1cca7e024c2b74308b620d5971fe917619821a75203d75df2031c9`).
 

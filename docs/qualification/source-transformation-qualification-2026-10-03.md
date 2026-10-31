@@ -1,7 +1,7 @@
 # Source Transformation Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `3f7d516a7f0386f5d620ebd5fa4b401bc6c452e6`.
+Tested implementation: `82d047deee49cfab0b13b25ff5b256ddaa05c643`.
 Branch: `feat/measured-generation-results`, local only.
 
 ## Results

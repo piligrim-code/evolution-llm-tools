@@ -1,7 +1,7 @@
 # Repair Qualification: First Live Repair
 
 Date: October 28, 2026.
-Branch: `feat/adaptive-skills`, runtime commit `c1fd56c`.
+Branch: `feat/adaptive-skills`, runtime commit `0c0ddfc`.
 Model: local Ollama `qwen2.5:7b`, `temperature=0`, `seed=7`, `max_tokens=2048`,
 no JSON mode. One repair request per task, no retries.
 

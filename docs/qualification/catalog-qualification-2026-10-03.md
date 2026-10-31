@@ -1,7 +1,7 @@
 # Catalog Qualification
 
 Date: October 3, 2026, Asia/Yekaterinburg.
-Tested implementation: `488e8c19271d196cade8e19aa50f2319c3b2adbc`.
+Tested implementation: `37cb880f9ecc8e28e2d3081ee7096c083a8182ab`.
 The subsequent qualification commit changes documentation only. No remote push,
 merge or release was performed.
 
