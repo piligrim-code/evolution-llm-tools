@@ -10,8 +10,8 @@ reasoning.
 Toolwright generates small tools with a local model, runs them only after
 explicit review, and reuses approved tools through a registry and a validated
 version catalog. The plumbing is well tested. The evidence for generation quality
-is thin; see the [real-model assessment](real-model-assessment-2026-10-19.md)
-and the [live-generation qualification](live-generation-qualification-2026-10-21.md).
+is thin; see the [real-model assessment](qualification/real-model-assessment-2026-10-19.md)
+and the [live-generation qualification](qualification/live-generation-qualification-2026-10-21.md).
 
 The proposed direction is to make the system improve from its own recorded
 experience without weakening any review guarantee. Four abilities are in scope:

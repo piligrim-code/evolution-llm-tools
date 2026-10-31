@@ -39,7 +39,7 @@ example acts as the final check.
 ## End-to-end check (October 28, 2026)
 
 Run against the local catalog of the 10 versions admitted in the
-[admission qualification](admission-qualification-2026-10-28.md). Each request
+[admission qualification](qualification/admission-qualification-2026-10-28.md). Each request
 used a public example case (never a held-out one); 10 requests were
 paraphrased. Docker only, no model requests.
 

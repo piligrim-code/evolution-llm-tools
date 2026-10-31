@@ -29,7 +29,7 @@ is a new, unreviewed candidate: it goes through review, single-use execution and
 
 ## Prompts built from the October 21 candidates
 
-Built from the receipts of the [first admission run](admission-qualification-2026-10-28.md):
+Built from the receipts of the [first admission run](qualification/admission-qualification-2026-10-28.md):
 
 | Task | Failed example cases | Observation | Held-out inputs in prompt |
 | --- | --- | --- | --- |

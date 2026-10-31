@@ -72,7 +72,7 @@ The artifact predates this documentation-only report/README update.
 
 ## Limits And Next Gates
 
-The [retention policy](retention.md) deliberately provides logical payload
+The [retention policy](../retention.md) deliberately provides logical payload
 removal, not secure erasure, physical compaction, bounded total disk usage or
 catalog deletion. Unresolved cleanup receipts cannot yet be marked resolved by
 an operator API. Permanent markers do not protect against privileged rewriting

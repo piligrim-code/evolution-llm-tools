@@ -66,7 +66,7 @@ sdist was qualified. Rebuilding after README changes can change the artifact has
 
 ## Remaining Gates
 
-This validates [the documented assertions](output-contracts.md) on the stated
+This validates [the documented assertions](../output-contracts.md) on the stated
 environments, not general tool correctness or a production release. Matching one
 independently supplied expectation is specific to those arguments and the
 correctness of that expectation. V1 proposals remain explicitly unvalidated.

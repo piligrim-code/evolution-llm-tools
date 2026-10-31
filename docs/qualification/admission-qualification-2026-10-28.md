@@ -7,7 +7,7 @@ Corpus: `toolwright-eval-v2`
 
 ## Summary
 
-The first real use of [evidence-gated admission](admission.md). The 16 tool
+The first real use of [evidence-gated admission](../admission.md). The 16 tool
 candidates from the October 21 `qwen2.5:7b` prompt-v3 run (sources after the
 recorded fence transformation, unchanged since) went through admission on
 corpus v2. **10 of 16 were admitted** and promoted into a local catalog. No model

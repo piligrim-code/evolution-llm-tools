@@ -47,7 +47,7 @@ The raw response and its hash are retained alongside the derived source/hash and
 transformation version. A fenced v2 record remains invalid_source. Its separately
 derived body is unreviewed_source, with no syntax/correctness or execution claim.
 
-See [the API and exact envelope](source-transformations.md). Hash binding detects
+See [the API and exact envelope](../source-transformations.md). Hash binding detects
 mixed observations, not malicious fabrication or independent model identity.
 No model-quality improvement, safety approval, hosted CI result, publication,
 merge, release or production readiness is established by these tests.

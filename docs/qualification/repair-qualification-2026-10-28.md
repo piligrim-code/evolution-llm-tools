@@ -7,7 +7,7 @@ no JSON mode. One repair request per task, no retries.
 
 ## Summary
 
-The first live use of [failure-driven repair](repair.md). The five repairable
+The first live use of [failure-driven repair](../repair.md). The five repairable
 failures from the [admission run](admission-qualification-2026-10-28.md) were
 each given one repair request built only from failed example cases. **One of
 five repaired candidates was admitted** (`active-ids`, 8/8 cases). The other

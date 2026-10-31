@@ -64,7 +64,7 @@ after README changes may change its hash without changing runtime code.
 
 ## Remaining Work
 
-The [catalog contract](version-catalog.md) preserves exact validated configurations,
+The [catalog contract](../version-catalog.md) preserves exact validated configurations,
 not a proof of correctness for all inputs or a complete audit of every reuse.
 The general typed execution-result API, explicit retention/pruning policy and
 three packaged deterministic demos remain EVO-2 work. Native Linux-host CI,

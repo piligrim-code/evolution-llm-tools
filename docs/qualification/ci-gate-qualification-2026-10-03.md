@@ -32,7 +32,7 @@ No unexpected pytest failures occurred. Timings are observations, not benchmarks
 
 ## Verified Evidence
 
-The new [qualification script](ci-qualification.md) completed with `status=passed`,
+The new [qualification script](../ci-qualification.md) completed with `status=passed`,
 `repository.clean=true`, the exact commit above and `symlinks_required=false` on
 this local Windows environment. It verified installed site-packages imports,
 all 23 module bytes against source and the wheel, the 29-entry archive allowlist,
