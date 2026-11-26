@@ -9,6 +9,7 @@ pending proposal before reuse. Nothing here generates, approves or executes.
 import re
 
 from .catalog import CatalogError, VersionCatalog
+from .review import _digest, _json
 
 _WORD = re.compile(r'[a-z0-9]+')
 # Estimated work per path, in reviewed single-use executions and model requests.
@@ -105,3 +106,36 @@ def prepare_reuse_check(catalog, reviews, decision, *, args, expected):
     selected = decision['selected']
     return catalog.prepare(selected['name'], selected['version'], reviews, args=args,
                            output_contract={'kind': 'json-object-equals', 'expected': expected})
+
+
+def decide_for_task(catalog, source):
+    """Reuse-or-generate for a user task, from its instruction and EXAMPLE cases only.
+
+    Every example must share one contract signature. A match does not reuse
+    anything by itself: the selected version's scripts become one more candidate
+    for the task and must pass every example and held-out case through the normal
+    review and admission flow, which costs one of the task's candidate slots but no
+    model request.
+    """
+    task = source.get_task(source.task_id)
+    examples = [case for case in task['cases'] if case['split'] == 'example']
+    signatures = {contract_signature(case['args'], case['expected']) for case in examples}
+    if len(signatures) != 1:
+        raise CatalogError('task_examples_have_different_contracts')
+    first = examples[0]
+    decision = decide(catalog, args=first['args'], expected=first['expected'], description=task['instruction'])
+    executions = len(task['cases'])
+    decision['estimated_cost'] = ({'model_requests': 0, 'executions': executions}
+                                  if decision['action'] == 'verify_reuse'
+                                  else {'model_requests': 1, 'executions': executions})
+    decision.update(task_id=source.task_id, task_sha256=source.corpus_digest(), held_out_consulted=False)
+    return decision
+
+
+def reuse_candidate(catalog, name, version):
+    """Scripts of an unretired, still-validated version, as an unreviewed candidate for a task."""
+    selected, doc, _ = catalog.checked_document(name, version)
+    record = {'source_name': selected['name'], 'source_version': selected['version'],
+              'scripts_sha256': _digest(_json(doc['scripts'])), 'status': 'unreviewed_candidate',
+              'execution_authorized': False}
+    return record, dict(doc['scripts'])

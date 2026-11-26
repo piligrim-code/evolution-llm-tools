@@ -60,3 +60,13 @@ The one wrong candidate was caught by its check.
   evidence, which covers the corpus task it was admitted for, not every paraphrase.
 - Ranking by word overlap is crude. It matters only when several versions share
   a signature.
+
+## User tasks
+
+For a [user task](user-tasks.md), `decide_for_task()` applies the same policy to
+the instruction and the example cases (all examples must share one signature).
+The check is stronger than one example: the selected version's scripts become a
+candidate for the task and must pass every example and held-out case through
+admission (`task reuse`, `task reuse-candidate`, then the normal flow). It uses
+one candidate slot and no model request. Held-out cases are never consulted by
+the decision.

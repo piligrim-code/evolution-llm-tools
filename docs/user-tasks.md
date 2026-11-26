@@ -66,6 +66,25 @@ evolution-tools task promote task.json <attempt> --yes
   them out of anything you later paste into a prompt, or they stop being
   held out.
 
+## Reuse before generating
+
+A catalog version may already do what the task asks. The decision uses only the
+instruction and the example cases (see [reuse policy](reuse-policy.md)):
+
+```sh
+evolution-tools task reuse task.json                     # verify_reuse or generate, with reason
+evolution-tools task reuse-candidate task.json <name> <version> --out candidate.json
+evolution-tools task prepare task.json --scripts candidate.json --container-image <image-id> > manifest.json
+```
+
+- `reuse` requires every example to have the same contract signature and ranks
+  catalog versions with that signature. It never runs or reuses anything.
+- `reuse-candidate` writes the scripts of an unretired version whose receipt
+  still validates. From there it is an ordinary candidate: it must pass every
+  example and held-out case through review and `admit`, and uses one candidate
+  slot, but no model request. If admitted, it is promoted under `task_<id>`.
+- If it is not admitted, `generate` as usual.
+
 ## Repair
 
 When a candidate fails an example case, it can be repaired from that failure.

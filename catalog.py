@@ -207,10 +207,8 @@ class VersionCatalog:
                     'next_cursor': items[-1]['sequence'] if len(rows) > limit else None,
                     'content_included': False, 'integrity_checked': False}
 
-    def prepare(self, name, version, reviews, *, args=None, output_contract=None):
-        """Copy a selected version into a fresh PENDING proposal; never execute."""
-        if (args is None) != (output_contract is None):
-            raise CatalogError('new_arguments_require_new_output_contract')
+    def checked_document(self, name, version):
+        """Document and policy of an unretired version whose receipt still validates; never executes."""
         selected = self.inspect(name, version)
         if selected['retired']:
             raise PermissionError('version_retired')
@@ -227,6 +225,13 @@ class VersionCatalog:
         if ('error' in result or validation['status'] != 'passed'
                 or result.get('output_validation') != validation):
             raise CatalogError('version_receipt_not_validated')
+        return selected, doc, policy
+
+    def prepare(self, name, version, reviews, *, args=None, output_contract=None):
+        """Copy a selected version into a fresh PENDING proposal; never execute."""
+        if (args is None) != (output_contract is None):
+            raise CatalogError('new_arguments_require_new_output_contract')
+        selected, doc, policy = self.checked_document(name, version)
         identifier = reviews.create(doc['spec'], doc['scripts'], doc['args'] if args is None else args, policy,
                                     output_contract=doc['output_contract'] if output_contract is None else output_contract)
         return {'id': identifier, 'state': 'pending', 'source_name': selected['name'],
