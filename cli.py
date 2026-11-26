@@ -10,6 +10,7 @@ from .catalog_cli import app as catalog_app
 from .demo_cli import app as demo_app
 from .evaluation_cli import app as evaluation_app
 from .task_cli import app as task_app
+from .general_cli import app as general_app
 
 app = typer.Typer()
 app.add_typer(review_app, name="review")
@@ -17,6 +18,7 @@ app.add_typer(catalog_app, name="catalog")
 app.add_typer(demo_app, name="demo")
 app.add_typer(evaluation_app, name="eval")
 app.add_typer(task_app, name="task")
+app.add_typer(general_app, name="general")
 console = Console()
 
 @app.command()
