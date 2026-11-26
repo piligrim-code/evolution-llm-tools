@@ -65,4 +65,28 @@ evolution-tools task promote task.json <attempt> --yes
 - Held-out cases are yours: you wrote them, and the task file holds them. Keep
   them out of anything you later paste into a prompt, or they stop being
   held out.
-- Repair for user tasks is not available yet.
+
+## Repair
+
+When a candidate fails an example case, it can be repaired from that failure.
+Repair uses example cases only, exactly as for the corpus (see [repair](repair.md)).
+
+```sh
+evolution-tools task failure task.json <example-case-id> <proposal-id> --out failure.json
+evolution-tools task repair-prompt task.json failure.json   # what the model will see
+evolution-tools task repair task.json failure.json --out repaired.json
+```
+
+- `failure` reads the finished receipt of one failed example case and writes a
+  failure record: the candidate source, the case, and a bounded observation
+  (final exception line or stdout excerpt). It refuses held-out cases, passing
+  cases and unfinished receipts.
+- `repair-prompt` and `repair` take one to three failure records of the same
+  candidate. The prompt is the generation prompt above plus the previous source
+  and the observations, labelled as data; it is refused if any held-out input
+  appears in it.
+- `repair` makes one model request and writes unreviewed source. The repaired
+  candidate goes through `prepare`, review, `admit` and `promote` like any other
+  and uses one of the task's candidate slots, so repairs cannot loop.
+- Held-out failures cannot be repaired: `admit` never says which held-out case
+  failed. Write a new example case instead, which makes it a new task.

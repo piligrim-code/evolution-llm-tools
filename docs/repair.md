@@ -47,6 +47,15 @@ Building these prompts surfaced a contradiction in prompt v5: the frozen v1 base
 text says "with no Markdown" while v5 asks for a fenced block. v5 now says
 explicitly that its rule replaces the earlier line. v5 had not been run live yet.
 
+## User tasks
+
+The same functions accept a [user task](user-tasks.md) as `corpus=`. The repair
+prompt is then built on the user task prompt (instruction and example cases
+only) instead of prompt v5, and failure records carry the task hash, so a record
+from one task file cannot be used with another. `generate_repair()` makes the
+one explicit model request. The CLI is `evolution-tools task failure`,
+`task repair-prompt` and `task repair`.
+
 ## Next
 
 Live repair needs the GPU: one generation per repairable task, then admission of
