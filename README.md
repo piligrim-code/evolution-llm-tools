@@ -35,6 +35,9 @@ request ─▶ reuse? ──yes──▶ check a catalog version on the requeste
 - **Repair** builds a prompt from failed *example* cases only, never held-out ones.
 - **Reuse** retrieves catalog versions by contract signature and verifies the best
   one on the requester's own example before reusing it.
+- **Your own tasks.** A task file with an instruction, example cases and held-out
+  cases runs through the same generation, review and admission flow. See
+  [user tasks](docs/user-tasks.md).
 
 ## Current results
 
@@ -75,7 +78,8 @@ python tools/run_container_tests.py
 ## Using it
 
 You need a local Ollama model and a trusted local Linux Docker engine (cgroup v2,
-seccomp). Resolve an immutable image ID once; the executor never pulls or builds
+seccomp). The default model is `gemma3:12b` (set in `config.py`); `--model`
+overrides it per command. Resolve an immutable image ID once; the executor never pulls or builds
 images:
 
 ```powershell
@@ -92,6 +96,10 @@ evolution-tools review approve <proposal-id> --digest <digest-from-inspect> --ye
 evolution-tools review execute <proposal-id> --structured
 evolution-tools catalog promote <proposal-id> --yes
 ```
+
+For a tool that should be proven before it is kept, write a task file with
+held-out cases and use `evolution-tools task ...`; see
+[`examples/duration-seconds.json`](examples/duration-seconds.json).
 
 See the [reviewed lifecycle walkthrough](docs/reviewed-lifecycle.md) and the
 [documentation index](docs/README.md) for evaluation, admission, repair and reuse

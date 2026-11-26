@@ -12,7 +12,7 @@ locally: asking a model for JSON does not make its output trustworthy.
 | --- | --- |
 | Prompt | 65,536 UTF-8 bytes |
 | Model identifier | 256 UTF-8 bytes |
-| Aggregate generation deadline | settings.request_timeout, default90s; explicit range(0,300] |
+| Aggregate generation deadline | settings.request_timeout, default 300s; explicit range (0,300] |
 | Connection / read inactivity | At most5s /15s, capped by the aggregate deadline |
 | Entire response body | 1MiB |
 | One NDJSON line | 256KiB |

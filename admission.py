@@ -1,6 +1,8 @@
 """Evidence-gated admission: held-out cases decide, generation never sees them.
 
-A candidate (spec, scripts, policy) is admitted for a corpus-v2 task only if one
+A task source is corpus v2 by default, or any object with the same interface
+(CORPUS_VERSION, corpus_digest, get_task, get_case, task_spec), such as a user
+task. A candidate (spec, scripts, policy) is admitted for a task only if one
 identical candidate passed every example and every held-out case, as shown by
 finished, approved receipts. Every scoring of held-out receipts is recorded in an
 append-only ledger before its outcome is returned, because looking at held-out
@@ -12,9 +14,8 @@ from contextlib import closing, contextmanager
 import sqlite3
 
 from .contracts import json_object
+from . import evaluation_corpus_v2
 from .evaluation import _case_score
-from .evaluation_corpus import task_spec
-from .evaluation_corpus_v2 import CORPUS_VERSION, corpus_digest, get_case, get_task
 from .execution_policy import reject_linked_path
 from .review import DOCUMENT_LIMIT, _digest, _json, _proposal_id
 
@@ -26,20 +27,22 @@ class AdmissionError(ValueError):
     pass
 
 
-def prepare_admission_case(task_id, case_id, scripts, policy, reviews):
-    """Create one pending corpus-v2 proposal; inspection and approval stay separate."""
-    task, case = get_case(task_id, case_id)
-    identifier = reviews.create(task_spec(task), scripts, case['args'], policy,
+def prepare_admission_case(task_id, case_id, scripts, policy, reviews, *, corpus=None):
+    """Create one pending proposal for a task case; inspection and approval stay separate."""
+    corpus = evaluation_corpus_v2 if corpus is None else corpus
+    task, case = corpus.get_case(task_id, case_id)
+    identifier = reviews.create(corpus.task_spec(task), scripts, case['args'], policy,
                                 output_contract={'kind': 'json-object-equals', 'expected': case['expected']})
     return {'task_id': task_id, 'case_id': case_id, 'split': case['split'], 'proposal_id': identifier,
-            'corpus_sha256': corpus_digest(), 'state': 'pending', 'execution_authorized': False}
+            'corpus_sha256': corpus.corpus_digest(), 'state': 'pending', 'execution_authorized': False}
 
 
 class AdmissionLedger:
-    def __init__(self, path='.mcp/admissions.sqlite3', *, candidate_limit=DEFAULT_CANDIDATE_LIMIT):
+    def __init__(self, path='.mcp/admissions.sqlite3', *, candidate_limit=DEFAULT_CANDIDATE_LIMIT, corpus=None):
         if type(candidate_limit) is not int or not 1 <= candidate_limit <= 20:
             raise AdmissionError('invalid_candidate_limit')
         self.path, self.candidate_limit = reject_linked_path(path), candidate_limit
+        self.corpus = evaluation_corpus_v2 if corpus is None else corpus
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._transaction() as db:
             app = db.execute('PRAGMA application_id').fetchone()[0]
@@ -79,7 +82,7 @@ class AdmissionLedger:
     @staticmethod
     def _summary(record, sequence, *, recorded):
         held = record['held_out']
-        return {'task_id': record['task_id'], 'corpus_version': CORPUS_VERSION,
+        return {'task_id': record['task_id'], 'corpus_version': record['corpus_version'],
                 'admitted': record['admitted'], 'attempt': sequence, 'newly_recorded': recorded,
                 'examples': record['examples'],
                 'held_out_passed': sum(status == 'correct' for status in held.values()),
@@ -88,9 +91,9 @@ class AdmissionLedger:
 
     def evaluate(self, reviews, task_id, assignments, *, expected_corpus_sha256):
         """Score receipts for every case of one task and record the attempt once."""
-        if expected_corpus_sha256 != corpus_digest():
+        if expected_corpus_sha256 != self.corpus.corpus_digest():
             raise AdmissionError('admission_corpus_mismatch')
-        task = get_task(task_id)
+        task = self.corpus.get_task(task_id)
         if task['kind'] != 'tool':
             raise AdmissionError('admission_requires_tool_task')
         if type(assignments) is not list or len(assignments) != len(task['cases']):
@@ -99,14 +102,16 @@ class AdmissionLedger:
         for entry in assignments:
             if type(entry) is not dict or set(entry) != {'case_id', 'proposal_id'}:
                 raise AdmissionError('invalid_admission_assignment')
-            get_case(task_id, entry['case_id'])
+            self.corpus.get_case(task_id, entry['case_id'])
             identifier = _proposal_id(entry['proposal_id'])
             if entry['case_id'] in selected or identifier in selected.values():
                 raise AdmissionError('duplicate_admission_assignment')
             selected[entry['case_id']] = identifier
         with reviews._connection() as review_db:
             review_db.execute('BEGIN')
-            rows = [_case_score(review_db, reviews, task, case, selected[case['id']]) for case in task['cases']]
+            spec = self.corpus.task_spec(task)
+            rows = [_case_score(review_db, reviews, task, case, selected[case['id']], spec=spec)
+                    for case in task['cases']]
         identities = {row['candidate_sha256'] for row in rows}
         if None in identities or len(identities) != 1:
             # Unbound or mixed receipts are refused before any held-out outcome is recorded.
@@ -118,25 +123,25 @@ class AdmissionLedger:
         examples = {row['case_id']: row['status'] for row in rows if row['split'] == 'example'}
         held_out = {row['case_id']: row['status'] for row in rows if row['split'] == 'held-out'}
         admitted = all(status == 'correct' for status in [*examples.values(), *held_out.values()])
-        record = {'format': 'toolwright-admission-v1', 'corpus_version': CORPUS_VERSION,
-                  'corpus_sha256': corpus_digest(), 'task_id': task_id, 'candidate_sha256': candidate,
+        record = {'format': 'toolwright-admission-v1', 'corpus_version': self.corpus.CORPUS_VERSION,
+                  'corpus_sha256': self.corpus.corpus_digest(), 'task_id': task_id, 'candidate_sha256': candidate,
                   'admitted': admitted, 'examples': examples, 'held_out': held_out,
                   'proposals': selected, 'promotion_case_id': task['cases'][0]['id']}
         with self._transaction() as db:
             existing = db.execute('SELECT sequence, record, record_digest FROM attempts '
                                   'WHERE corpus_sha256=? AND task_id=? AND candidate_sha256=?',
-                                  (corpus_digest(), task_id, candidate)).fetchone()
+                                  (self.corpus.corpus_digest(), task_id, candidate)).fetchone()
             if existing is not None:
                 # Re-scoring the same candidate returns its first decision and uses no budget.
                 return self._summary(self._checked(existing), existing['sequence'], recorded=False)
             used = db.execute('SELECT COUNT(*) FROM attempts WHERE corpus_sha256=? AND task_id=?',
-                              (corpus_digest(), task_id)).fetchone()[0]
+                              (self.corpus.corpus_digest(), task_id)).fetchone()[0]
             if used >= self.candidate_limit:
                 raise PermissionError('held_out_candidate_budget_exhausted')
             encoded = _json(record)
             cursor = db.execute('INSERT INTO attempts(corpus_sha256,task_id,candidate_sha256,admitted,record,'
                                 'record_digest) VALUES(?,?,?,?,?,?)',
-                                (corpus_digest(), task_id, candidate, int(admitted), encoded, _digest(encoded)))
+                                (self.corpus.corpus_digest(), task_id, candidate, int(admitted), encoded, _digest(encoded)))
             return self._summary(record, cursor.lastrowid, recorded=True)
 
     @staticmethod
@@ -147,11 +152,11 @@ class AdmissionLedger:
         return record
 
     def budget(self, task_id):
-        get_task(task_id)
+        self.corpus.get_task(task_id)
         with self._transaction() as db:
             used = db.execute('SELECT COUNT(*) FROM attempts WHERE corpus_sha256=? AND task_id=?',
-                              (corpus_digest(), task_id)).fetchone()[0]
-        return {'task_id': task_id, 'corpus_version': CORPUS_VERSION, 'candidates_used': used,
+                              (self.corpus.corpus_digest(), task_id)).fetchone()[0]
+        return {'task_id': task_id, 'corpus_version': self.corpus.CORPUS_VERSION, 'candidates_used': used,
                 'candidate_limit': self.candidate_limit}
 
     def inspect(self, attempt, *, include_held_out=False):
@@ -183,10 +188,10 @@ class AdmissionLedger:
         record = self._checked(row)
         if record['admitted'] is not True:
             raise PermissionError('candidate_not_admitted')
-        if record['corpus_sha256'] != corpus_digest():
+        if record['corpus_sha256'] != self.corpus.corpus_digest():
             raise AdmissionError('admission_corpus_mismatch')
         case_id = record['promotion_case_id']
-        if get_case(record['task_id'], case_id)[1]['split'] != 'example':
+        if self.corpus.get_case(record['task_id'], case_id)[1]['split'] != 'example':
             raise AdmissionError('promotion_requires_example_case')
         return {**catalog.promote(reviews, record['proposals'][case_id], confirm=True),
                 'admission_attempt': attempt, 'task_id': record['task_id']}

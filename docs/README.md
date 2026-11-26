@@ -28,6 +28,7 @@ Adaptive skills:
 - [Admission](admission.md): evidence-gated catalog entry.
 - [Repair](repair.md): repair from example failures.
 - [Reuse policy](reuse-policy.md): reuse-or-generate decisions.
+- [User tasks](user-tasks.md): your own tasks with example and held-out cases.
 
 ## Qualification reports
 

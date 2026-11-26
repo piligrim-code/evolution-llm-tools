@@ -35,7 +35,7 @@ def score_decision(task_id, decision):
             'generation_provenance_verified': False, 'execution_authorized': False}
 
 
-def _case_score(db, reviews, task, case, identifier):
+def _case_score(db, reviews, task, case, identifier, *, spec=None):
     base = {'task_id': task['id'], 'case_id': case['id'], 'split': case['split'],
             'proposal_id': identifier, 'candidate_sha256': None, 'limits': None,
             'measurements': {'generation_seconds': None, 'execution_seconds': None,
@@ -48,7 +48,7 @@ def _case_score(db, reviews, task, case, identifier):
     except (ValueError, PermissionError):
         return {**base, 'status': 'unavailable'}
     expected = {'kind': 'json-object-equals', 'expected': case['expected']}
-    if (doc.get('version') != 2 or _json(doc['spec']) != _json(tool_spec(task_spec(task)))
+    if (doc.get('version') != 2 or _json(doc['spec']) != _json(tool_spec(spec if spec is not None else task_spec(task)))
             or _json(doc['args']) != _json(case['args']) or _json(doc['output_contract']) != _json(expected)):
         return {**base, 'status': 'binding_mismatch'}
     base['candidate_sha256'] = _digest(_json({'spec': doc['spec'], 'scripts': doc['scripts'], 'policy': doc['policy']}))

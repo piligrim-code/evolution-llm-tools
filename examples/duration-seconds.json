@@ -1,0 +1,16 @@
+{
+  "format": "toolwright-user-task-v1",
+  "id": "duration-seconds",
+  "instruction": "Convert a duration string made of hours (h), minutes (m) and seconds (s), such as \"1h30m\", into whole seconds. Units appear in the order h, m, s and each at most once.",
+  "examples": [
+    {"id": "hours-minutes", "data": {"text": "1h30m"}, "result": 5400},
+    {"id": "seconds-only", "data": {"text": "45s"}, "result": 45}
+  ],
+  "held_out": [
+    {"id": "all-units", "data": {"text": "2h5m7s"}, "result": 7507},
+    {"id": "hours-only", "data": {"text": "3h"}, "result": 10800},
+    {"id": "minutes-seconds", "data": {"text": "15m30s"}, "result": 930},
+    {"id": "zero", "data": {"text": "0s"}, "result": 0},
+    {"id": "large-seconds", "data": {"text": "90s"}, "result": 90}
+  ]
+}

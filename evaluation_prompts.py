@@ -1,6 +1,40 @@
 """Opt-in prompt revisions, separate from the frozen task corpus and v1 text."""
 from .evaluation_corpus import decision_prompt, generation_prompt, get_task
 
+_SOURCE_RULES = [
+    'Invocation is the argv vector ["python", "tool.py", "--json", "<JSON object>"], not a shell command.',
+    'Inside tool.py: sys.argv[0] is the script path, sys.argv[1] is "--json", and sys.argv[2] is the JSON string.',
+    'Import every module you use. Parse args = json.loads(sys.argv[2]); data = args["data"]. Validate the full input shape before computing.',
+    'Reject missing, extra, or wrong-type values without coercion. For integer fields require type(value) is int; bool is not an integer.',
+    'For invalid input, write one fixed short message to stderr and exit nonzero. Do not emit a traceback or stdout.',
+    'For valid input, write exactly one JSON object {"result": <answer>} to stdout and no other text.',
+]
+_FENCE_FORMAT_RULE = (
+    'Format: put the complete source of tool.py in one ```python code block. This replaces the earlier '
+    '"no Markdown" instruction. Close the block with a single ``` line, write it only once, and stop '
+    'there: nothing after it, no second closing fence, no REQUIREMENTS line.')
+_FORMAT_RULES = {
+    'v4': 'Reply with exactly one JSON object {"source": "<complete Python source of tool.py>"} and no other keys or text.',
+    'v5': ('Reply with exactly one Markdown code block: a ```python line, the complete source of tool.py, '
+           'then a ``` line. This replaces the earlier "no Markdown" instruction. '
+           'No text before or after the block, and no REQUIREMENTS line.'),
+    'v6': _FENCE_FORMAT_RULE,
+    'v7': _FENCE_FORMAT_RULE,
+}
+_V7_BOILERPLATE_RULE = ('Start tool.py with "import json" and "import sys" at the top level. Exit only with '
+                        'sys.exit(...), never exit() or quit(). Empty lists, objects and strings are valid input '
+                        'unless the task says otherwise.')
+
+
+def source_rules(version):
+    """Tool-source rules shared by prompt versions v4-v7 (and user-task prompts)."""
+    if version not in _FORMAT_RULES:
+        raise ValueError('invalid_evaluation_prompt_version')
+    rules = [*_SOURCE_RULES, _FORMAT_RULES[version]]
+    if version == 'v7':
+        rules.insert(-1, _V7_BOILERPLATE_RULE)
+    return rules
+
 
 def evaluation_prompt(task_id, *, mode='source', version='v1'):
     if mode not in ('source', 'decision'):
@@ -21,28 +55,7 @@ def evaluation_prompt(task_id, *, mode='source', version='v1'):
         header = f'Toolwright evaluation prompt {version}. Do not execute any code.'
         if mode == 'decision' or task['kind'] == 'refusal':
             return header + '\n' + prompt
-        rules = [
-            header, prompt,
-            'Invocation is the argv vector ["python", "tool.py", "--json", "<JSON object>"], not a shell command.',
-            'Inside tool.py: sys.argv[0] is the script path, sys.argv[1] is "--json", and sys.argv[2] is the JSON string.',
-            'Import every module you use. Parse args = json.loads(sys.argv[2]); data = args["data"]. Validate the full input shape before computing.',
-            'Reject missing, extra, or wrong-type values without coercion. For integer fields require type(value) is int; bool is not an integer.',
-            'For invalid input, write one fixed short message to stderr and exit nonzero. Do not emit a traceback or stdout.',
-            'For valid input, write exactly one JSON object {"result": <answer>} to stdout and no other text.',
-            'Reply with exactly one JSON object {"source": "<complete Python source of tool.py>"} and no other keys or text.'
-            if version == 'v4' else
-            'Reply with exactly one Markdown code block: a ```python line, the complete source of tool.py, '
-            'then a ``` line. This replaces the earlier "no Markdown" instruction. '
-            'No text before or after the block, and no REQUIREMENTS line.'
-            if version == 'v5' else
-            'Format: put the complete source of tool.py in one ```python code block. This replaces the earlier '
-            '"no Markdown" instruction. Close the block with a single ``` line, write it only once, and stop '
-            'there: nothing after it, no second closing fence, no REQUIREMENTS line.',
-        ]
-        if version == 'v7':
-            rules.insert(-1, 'Start tool.py with "import json" and "import sys" at the top level. Exit only with '
-                             'sys.exit(...), never exit() or quit(). Empty lists, objects and strings are valid input '
-                             'unless the task says otherwise.')
+        rules = [header, prompt, *source_rules(version)]
         if task_id == 'integer-sum':
             rules.append('Input contract: data must contain exactly "values"; it must be a list of exact integers. An empty list is valid and sums to zero.')
         return '\n'.join(rules)
