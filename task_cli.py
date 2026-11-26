@@ -9,6 +9,7 @@ from .catalog import VersionCatalog
 from .container_runner import ContainerPolicy
 from .contracts import json_object
 from .llm import OllamaClient
+from .repair import failure_record, generate_repair, repair_prompt
 from .review import ReviewStore
 from .review_cli import _errors, _print_json
 from .user_tasks import UserTaskSource, generate_user_candidate, user_prompt
@@ -52,12 +53,56 @@ def generate_command(task_file: str, out: str = typer.Option(..., help='Where to
         source = _source(task_file)
         record, text = generate_user_candidate(source, OllamaClient(model=model), max_tokens=max_tokens,
                                                seed=seed, think=False if no_think else None)
-        if text is not None:
-            target = Path(out)
-            with target.open('x', encoding='utf-8') as stream:
-                stream.write(json.dumps({'tool.py': text}))
-            record['candidate_file'] = str(target)
-        _print_json(record)
+        _print_json(_write_candidate(record, text, out))
+
+
+def _write_candidate(record, text, out):
+    if text is not None:
+        target = Path(out)
+        with target.open('x', encoding='utf-8') as stream:
+            stream.write(json.dumps({'tool.py': text}))
+        record['candidate_file'] = str(target)
+    return record
+
+
+@app.command('failure')
+def failure_command(task_file: str, case_id: str, proposal_id: str,
+                    out: str = typer.Option(..., help='Where to write the failure record JSON.'),
+                    store: str = typer.Option('.mcp/reviews.sqlite3')):
+    """Record one failed EXAMPLE case from its finished receipt. Held-out cases are refused."""
+    with _errors():
+        source = _source(task_file)
+        record = failure_record(ReviewStore(store, read_only=True), source.task_id, case_id, proposal_id,
+                                corpus=source)
+        with Path(out).open('x', encoding='utf-8') as stream:
+            stream.write(json.dumps(record))
+        _print_json({'task_id': source.task_id, 'case_id': case_id, 'status': record['failure']['status'],
+                     'candidate_sha256': record['candidate_sha256'], 'failure_file': out})
+
+
+@app.command('repair-prompt')
+def repair_prompt_command(task_file: str, failures: list[str]):
+    """Show the repair prompt built from one to three failure records of one candidate."""
+    with _errors():
+        source = _source(task_file)
+        records = [_read(path) for path in failures]
+        _print_json({'task_id': source.task_id, 'task_sha256': source.corpus_digest(),
+                     'prompt': repair_prompt(source.task_id, records, corpus=source)})
+
+
+@app.command('repair')
+def repair_command(task_file: str, failures: list[str],
+                   out: str = typer.Option(..., help='Where to write the repaired candidate scripts JSON.'),
+                   model: str = typer.Option(None, help='Override the configured Ollama model.'),
+                   seed: int = typer.Option(None), max_tokens: int = typer.Option(2048),
+                   no_think: bool = typer.Option(False, '--no-think', help='Send think=false (thinking models).')):
+    """Ask the model for one repaired candidate. Writes unreviewed source; never approves or runs it."""
+    with _errors():
+        source = _source(task_file)
+        records = [_read(path) for path in failures]
+        record, text = generate_repair(source.task_id, records, OllamaClient(model=model), corpus=source,
+                                       max_tokens=max_tokens, seed=seed, think=False if no_think else None)
+        _print_json(_write_candidate(record, text, out))
 
 
 @app.command('prepare')
