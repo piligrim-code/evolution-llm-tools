@@ -12,6 +12,7 @@ from .llm import OllamaClient
 from .repair import failure_record, generate_repair, repair_prompt
 from .review import ReviewStore
 from .review_cli import _errors, _print_json
+from .skill_index import decide_for_task, reuse_candidate
 from .user_tasks import UserTaskSource, generate_user_candidate, user_prompt
 
 app = typer.Typer(no_args_is_help=True,
@@ -63,6 +64,26 @@ def _write_candidate(record, text, out):
             stream.write(json.dumps({'tool.py': text}))
         record['candidate_file'] = str(target)
     return record
+
+
+@app.command('reuse')
+def reuse_command(task_file: str, catalog: str = typer.Option('.mcp/versions.sqlite3')):
+    """Decide reuse or generate from the instruction and examples; never runs or reuses anything."""
+    with _errors():
+        _print_json(decide_for_task(VersionCatalog(catalog, read_only=True), _source(task_file)))
+
+
+@app.command('reuse-candidate')
+def reuse_candidate_command(task_file: str, name: str, version: str,
+                            out: str = typer.Option(..., help='Where to write the candidate scripts JSON.'),
+                            catalog: str = typer.Option('.mcp/versions.sqlite3')):
+    """Write a catalog version's scripts as an unreviewed candidate for this task's admission."""
+    with _errors():
+        source = _source(task_file)
+        record, scripts = reuse_candidate(VersionCatalog(catalog, read_only=True), name, version)
+        with Path(out).open('x', encoding='utf-8') as stream:
+            stream.write(json.dumps(scripts))
+        _print_json({**record, 'task_id': source.task_id, 'candidate_file': out})
 
 
 @app.command('failure')
