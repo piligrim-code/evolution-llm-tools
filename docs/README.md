@@ -29,6 +29,7 @@ Adaptive skills:
 - [Repair](repair.md): repair from example failures.
 - [Reuse policy](reuse-policy.md): reuse-or-generate decisions.
 - [User tasks](user-tasks.md): your own tasks with example and held-out cases.
+- [Generalization](generalization.md): one parameterized tool for a task family (groundwork).
 
 ## Qualification reports
 

@@ -174,6 +174,21 @@ class AdmissionLedger:
             summary.update(held_out=record['held_out'], held_out_details_included=True)
         return summary
 
+    def promotion_proposal(self, attempt):
+        """Proposal ID of an attempt's promotion case (an example case); reveals no held-out detail."""
+        if type(attempt) is not int or attempt < 1:
+            raise AdmissionError('invalid_admission_attempt')
+        with self._transaction() as db:
+            row = db.execute('SELECT sequence, record, record_digest FROM attempts WHERE sequence=?',
+                             (attempt,)).fetchone()
+        if row is None:
+            raise AdmissionError('admission_attempt_not_found')
+        record = self._checked(row)
+        case_id = record['promotion_case_id']
+        if self.corpus.get_case(record['task_id'], case_id)[1]['split'] != 'example':
+            raise AdmissionError('promotion_requires_example_case')
+        return record['proposals'][case_id]
+
     def promote(self, catalog, reviews, attempt, *, confirm=False):
         """Promote an admitted candidate via its first example receipt, never a held-out one."""
         if confirm is not True:
